@@ -1,0 +1,38 @@
+region_name: us-east-1
+models:
+  - name: Claude 3 Sonnet
+    provider: anthropic
+    bedrock_model_id: anthropic.claude-3-sonnet-20240229-v1:0
+    tokenizer: anthropic
+    pricing:
+      input_per_1k_tokens_usd: 0.003
+      output_per_1k_tokens_usd: 0.015
+    generation_params:
+      max_tokens: 512
+      temperature: 0.2
+      top_p: 0.95
+
+  - name: Llama 3 70B Instruct
+    provider: meta
+    bedrock_model_id: meta.llama3-70b-instruct-v1:0
+    tokenizer: llama
+    pricing:
+      input_per_1k_tokens_usd: 0.002
+      output_per_1k_tokens_usd: 0.0025
+    generation_params:
+      max_tokens: 512
+      temperature: 0.2
+      top_p: 0.9
+
+  - name: Titan Text Premier
+    provider: amazon
+    bedrock_model_id: amazon.titan-text-premier-v1
+    tokenizer: heuristic
+    pricing:
+      input_per_1k_tokens_usd: 0.0004
+      output_per_1k_tokens_usd: 0.0006
+    generation_params:
+      max_tokens: 512
+      temperature: 0.2
+      top_p: 0.9
+
