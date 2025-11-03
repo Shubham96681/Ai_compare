@@ -98,7 +98,8 @@ class BedrockEvaluator:
                 metrics["input_tokens"] = input_tokens_actual
                 input_tokens = input_tokens_actual  # Use actual for cost calculation
             
-            metrics["response"] = response_text[:500] if len(response_text) > 500 else response_text  # Truncate for storage
+            # Store full response for dashboard display (can be long, but needed for JSON output viewing)
+            metrics["response"] = response_text  # Store full response
             
             # Always validate JSON to provide useful information
             # Set json_valid based on whether JSON was expected and the actual validation result

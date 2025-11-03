@@ -645,6 +645,54 @@ with tab1:
                 display_df['status'] = display_df['status'].apply(lambda x: "✅ Success" if x == "success" else "❌ Error")
             
             st.dataframe(display_df, use_container_width=True, height=200)
+            
+            # Display JSON Output Responses
+            st.subheader("📄 Output JSON Responses")
+            for idx, result in enumerate(results):
+                model_name = result.get('model_name', 'Unknown')
+                prompt_id = result.get('prompt_id', 'N/A')
+                status = result.get('status', 'unknown')
+                response = result.get('response', '')
+                error = result.get('error', None)
+                
+                # Create expander title
+                if prompt_id and prompt_id != 'N/A':
+                    expander_title = f"🔹 {model_name} - {prompt_id}"
+                else:
+                    expander_title = f"🔹 {model_name}"
+                
+                if status == 'error':
+                    expander_title += " ❌"
+                else:
+                    expander_title += " ✅"
+                
+                with st.expander(expander_title, expanded=False):
+                    if status == 'success' and response:
+                        # Try to format as JSON if valid JSON
+                        try:
+                            json_obj = json.loads(response)
+                            st.json(json_obj)
+                        except (json.JSONDecodeError, ValueError, TypeError):
+                            # If not valid JSON, display as code/text
+                            st.markdown("**Response (Text Format):**")
+                            st.code(response, language='text')
+                        
+                        # Show raw response option
+                        with st.expander("📋 View Raw Response", expanded=False):
+                            st.text_area(
+                                "Full Response Text",
+                                value=response,
+                                height=200,
+                                key=f"raw_response_{idx}",
+                                disabled=True
+                            )
+                    elif status == 'error':
+                        st.error(f"**Error:** {error if error else 'Unknown error occurred'}")
+                        if response:
+                            st.markdown("**Partial Response:**")
+                            st.code(response, language='text')
+                    else:
+                        st.warning("No response available")
         
         st.markdown("---")
     
