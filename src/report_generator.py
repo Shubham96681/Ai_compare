@@ -1,7 +1,7 @@
 """Report generator: aggregates raw metrics into model-level summaries."""
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 import pandas as pd
 import numpy as np
 
@@ -16,7 +16,7 @@ def percentile(series: pd.Series, p: float) -> float:
 class ReportGenerator:
     """Generates aggregated reports from raw metrics."""
     
-    def __init__(self, output_dir: str | Path):
+    def __init__(self, output_dir: Union[str, Path]):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.comparison_csv_path = self.output_dir / "model_comparison.csv"
@@ -24,7 +24,7 @@ class ReportGenerator:
     def generate_report(
         self,
         raw_metrics_df: Optional[pd.DataFrame] = None,
-        raw_csv_path: Optional[str | Path] = None
+        raw_csv_path: Optional[Union[str, Path]] = None
     ) -> pd.DataFrame:
         """
         Generate aggregated comparison report.
