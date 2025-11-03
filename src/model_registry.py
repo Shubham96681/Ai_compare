@@ -1,6 +1,6 @@
 """Model registry: loads model metadata, pricing, and defaults from YAML."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from pathlib import Path
 import yaml
 import os
@@ -9,7 +9,7 @@ import os
 class ModelRegistry:
     """Manages model configurations and provides access to model metadata."""
     
-    def __init__(self, config_path: str | Path):
+    def __init__(self, config_path: Union[str, Path]):
         self.config_path = Path(config_path)
         self.config = self._load_config()
         self.region_name = self.config.get("region_name", os.getenv("AWS_REGION", "us-east-1"))
@@ -59,7 +59,7 @@ class ModelRegistry:
 
 
 # Convenience functions for backward compatibility
-def load_models_config(config_path: str | Path) -> Dict[str, Any]:
+def load_models_config(config_path: Union[str, Path]) -> Dict[str, Any]:
     """Load models configuration from YAML file."""
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
