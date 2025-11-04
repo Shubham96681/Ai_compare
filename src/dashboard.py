@@ -32,6 +32,7 @@ def extract_prompt_from_json_item(item: dict) -> str:
     """
     Extract prompt text from various JSON structures.
     Handles Bedrock CloudTrail format and other common formats.
+    Specifically handles NDJSON files with questions in messages.
     """
     if not isinstance(item, dict):
         return str(item) if item else ""
@@ -68,14 +69,25 @@ def extract_prompt_from_json_item(item: dict) -> str:
                                         if isinstance(content_item, dict) and 'text' in content_item:
                                             text = content_item['text']
                                             if isinstance(text, str) and text.strip():
+                                                # Try to extract questions from "Questions:" section
+                                                questions_text = _extract_questions_from_text(text)
+                                                if questions_text:
+                                                    return questions_text
                                                 user_messages.append(text.strip())
                                         elif isinstance(content_item, str) and content_item.strip():
+                                            questions_text = _extract_questions_from_text(content_item)
+                                            if questions_text:
+                                                return questions_text
                                             user_messages.append(content_item.strip())
                                 elif isinstance(content, str) and content.strip():
+                                    questions_text = _extract_questions_from_text(content)
+                                    if questions_text:
+                                        return questions_text
                                     user_messages.append(content.strip())
                         
                         if user_messages:
-                            return "\n\n".join(user_messages)
+                            # Return the last user message (usually contains the actual question)
+                            return user_messages[-1] if len(user_messages) > 0 else "\n\n".join(user_messages)
             
             # Check for direct messages array
             if 'messages' in input_data:
@@ -90,14 +102,23 @@ def extract_prompt_from_json_item(item: dict) -> str:
                                     if isinstance(content_item, dict) and 'text' in content_item:
                                         text = content_item['text']
                                         if isinstance(text, str) and text.strip():
+                                            questions_text = _extract_questions_from_text(text)
+                                            if questions_text:
+                                                return questions_text
                                             user_messages.append(text.strip())
                                     elif isinstance(content_item, str) and content_item.strip():
+                                        questions_text = _extract_questions_from_text(content_item)
+                                        if questions_text:
+                                            return questions_text
                                         user_messages.append(content_item.strip())
                             elif isinstance(content, str) and content.strip():
+                                questions_text = _extract_questions_from_text(content)
+                                if questions_text:
+                                    return questions_text
                                 user_messages.append(content.strip())
                     
                     if user_messages:
-                        return "\n\n".join(user_messages)
+                        return user_messages[-1] if len(user_messages) > 0 else "\n\n".join(user_messages)
     
     # Try to find any string value that looks like a prompt (longer than 20 chars, not a timestamp)
     for key, value in item.items():
@@ -106,6 +127,9 @@ def extract_prompt_from_json_item(item: dict) -> str:
             if not (key.lower() in ['timestamp', 'time', 'id', 'requestid', 'date'] or 
                     value.strip().startswith('202') or  # Dates like 2025-10-01
                     len(value.strip().split()) < 3):  # Too short
+                questions_text = _extract_questions_from_text(value)
+                if questions_text:
+                    return questions_text
                 return value.strip()
     
     # Last resort: try to extract from any nested structures
@@ -121,6 +145,71 @@ def extract_prompt_from_json_item(item: dict) -> str:
                 if nested:
                     return nested
     
+    return ""
+
+
+def _extract_questions_from_text(text: str) -> str:
+    """
+    Extract questions from text that contains a "Questions:" section with JSON array.
+    Returns formatted questions or empty string if not found.
+    """
+    if not isinstance(text, str):
+        return ""
+    
+    # Look for "Questions:" section
+    questions_marker = "Questions:"
+    if questions_marker in text:
+        # Find the start of the questions array
+        start_idx = text.find(questions_marker)
+        if start_idx >= 0:
+            # Find the JSON array starting after "Questions:"
+            after_marker = text[start_idx + len(questions_marker):].strip()
+            
+            # Try to find the JSON array
+            # Look for opening bracket
+            bracket_start = after_marker.find('[')
+            if bracket_start >= 0:
+                # Find matching closing bracket
+                bracket_count = 0
+                bracket_end = -1
+                for i in range(bracket_start, len(after_marker)):
+                    if after_marker[i] == '[':
+                        bracket_count += 1
+                    elif after_marker[i] == ']':
+                        bracket_count -= 1
+                        if bracket_count == 0:
+                            bracket_end = i + 1
+                            break
+                
+                if bracket_end > 0:
+                    # Extract the JSON array
+                    json_array_str = after_marker[bracket_start:bracket_end]
+                    try:
+                        # Parse the JSON array
+                        questions_array = json.loads(json_array_str)
+                        if isinstance(questions_array, list):
+                            # Extract question text from each item
+                            question_texts = []
+                            for q_item in questions_array:
+                                if isinstance(q_item, dict):
+                                    # Try different field names for question
+                                    question = (q_item.get('Question') or 
+                                               q_item.get('question') or 
+                                               q_item.get('text') or 
+                                               q_item.get('prompt') or
+                                               str(q_item))
+                                    if question and isinstance(question, str) and len(question.strip()) > 0:
+                                        question_texts.append(question.strip())
+                                elif isinstance(q_item, str):
+                                    question_texts.append(q_item.strip())
+                            
+                            if question_texts:
+                                # Return formatted questions
+                                return "\n\n".join([f"Q{i+1}: {q}" for i, q in enumerate(question_texts)])
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+    
+    # If no questions found, return empty string
     return ""
 
 # Page configuration
@@ -508,6 +597,23 @@ with st.sidebar:
                                         prompts.append(str(item))
                                 elif isinstance(item, str):
                                     prompts.append(item)
+                        else:
+                            # Single JSON object - extract all prompts from it
+                            extracted_prompt = extract_prompt_from_json_item(data)
+                            if extracted_prompt:
+                                # Check if extracted text contains multiple questions (separated by Q1:, Q2:, etc.)
+                                if "\n\nQ" in extracted_prompt and extracted_prompt.count("Q") > 1:
+                                    # Split by question markers
+                                    question_parts = extracted_prompt.split("\n\nQ")
+                                    for i, part in enumerate(question_parts):
+                                        if part.strip():
+                                            if i == 0 and not part.startswith("Q"):
+                                                # First part might not have Q prefix
+                                                prompts.append(part.strip())
+                                            else:
+                                                prompts.append(f"Q{part.strip()}")
+                                else:
+                                    prompts.append(extracted_prompt)
                         
                         # If data is a single dict
                         elif isinstance(data, dict):
