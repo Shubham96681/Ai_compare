@@ -25,6 +25,7 @@ from src.model_registry import ModelRegistry
 from src.evaluator import BedrockEvaluator
 from src.metrics_logger import MetricsLogger
 from src.report_generator import ReportGenerator
+from src.utils.json_utils import is_valid_json
 
 # Page configuration
 st.set_page_config(
@@ -269,36 +270,118 @@ with st.sidebar:
                         st.session_state.uploaded_prompts = []
                         
                 elif file_extension == 'json':
+                    # Read file content as string (handles both bytes and text)
                     file_content = uploaded_file.read()
-                    data = json.loads(file_content)
+                    if isinstance(file_content, bytes):
+                        file_content = file_content.decode('utf-8')
                     
-                    # Handle different JSON structures
-                    if isinstance(data, list):
-                        prompts = []
-                        for item in data:
-                            if isinstance(item, dict):
-                                if 'prompt' in item:
-                                    prompts.append(item['prompt'])
+                    # Try to parse as regular JSON first
+                    data = None
+                    json_error = None
+                    
+                    try:
+                        # Try parsing as single JSON object/array
+                        is_valid, parsed = is_valid_json(file_content)
+                        if is_valid:
+                            data = parsed
+                    except Exception as e:
+                        json_error = str(e)
+                    
+                    # If JSON parsing failed or has "Extra data" error, try JSONL format
+                    if data is None or (json_error and "Extra data" in json_error):
+                        # Try parsing as JSONL (one JSON object per line)
+                        try:
+                            lines = file_content.strip().split('\n')
+                            jsonl_objects = []
+                            for line_num, line in enumerate(lines, 1):
+                                line = line.strip()
+                                if not line:
+                                    continue
+                                
+                                is_valid, parsed = is_valid_json(line)
+                                if is_valid:
+                                    jsonl_objects.append(parsed)
                                 else:
-                                    for key, value in item.items():
-                                        if isinstance(value, str) and len(value) > 10:
-                                            prompts.append(value)
-                                            break
-                        st.session_state.uploaded_prompts = prompts
-                    elif isinstance(data, dict):
-                        if 'prompts' in data:
-                            st.session_state.uploaded_prompts = data['prompts'] if isinstance(data['prompts'], list) else [data['prompts']]
-                        elif 'prompt' in data:
-                            st.session_state.uploaded_prompts = [data['prompt']]
-                        else:
-                            st.error("❌ JSON structure not recognized")
-                            st.session_state.uploaded_prompts = []
+                                    # If one line fails, might not be JSONL
+                                    break
+                            
+                            # If we successfully parsed multiple lines as JSON, it's JSONL
+                            if len(jsonl_objects) > 0:
+                                data = jsonl_objects
+                            elif data is None:
+                                # If JSONL also failed, try to parse just the first valid JSON object
+                                # This handles cases where there's extra data after the main JSON
+                                try:
+                                    # Find the first complete JSON object
+                                    first_obj_end = file_content.find('\n')
+                                    if first_obj_end > 0:
+                                        first_line = file_content[:first_obj_end].strip()
+                                        is_valid, parsed = is_valid_json(first_line)
+                                        if is_valid:
+                                            data = [parsed]  # Wrap in list for consistency
+                                except:
+                                    pass
+                        except Exception as e:
+                            pass
                     
-                    if st.session_state.uploaded_prompts:
-                        st.success(f"✅ Loaded {len(st.session_state.uploaded_prompts)} prompts")
-                        if st.checkbox("Preview prompts", key="preview_json"):
-                            preview_df = pd.DataFrame({'prompt': st.session_state.uploaded_prompts[:5]})
-                            st.dataframe(preview_df, use_container_width=True)
+                    # If still no data, show error
+                    if data is None:
+                        st.error(f"❌ Error parsing JSON file: {json_error or 'Invalid JSON format. Please ensure the file is valid JSON or JSONL format.'}")
+                        st.session_state.uploaded_prompts = []
+                    else:
+                        # Handle different JSON structures
+                        prompts = []
+                        
+                        # If data is a list (from JSON array or JSONL)
+                        if isinstance(data, list):
+                            for item in data:
+                                if isinstance(item, dict):
+                                    # Try to extract prompt from various field names
+                                    if 'prompt' in item:
+                                        prompts.append(item['prompt'])
+                                    elif 'input' in item and isinstance(item['input'], str):
+                                        prompts.append(item['input'])
+                                    elif 'text' in item and isinstance(item['text'], str):
+                                        prompts.append(item['text'])
+                                    elif 'message' in item:
+                                        msg = item['message']
+                                        if isinstance(msg, str):
+                                            prompts.append(msg)
+                                        elif isinstance(msg, dict) and 'content' in msg:
+                                            prompts.append(str(msg['content']))
+                                    else:
+                                        # Try to find any string value that looks like a prompt
+                                        for key, value in item.items():
+                                            if isinstance(value, str) and len(value) > 10:
+                                                prompts.append(value)
+                                                break
+                                elif isinstance(item, str):
+                                    prompts.append(item)
+                        
+                        # If data is a single dict
+                        elif isinstance(data, dict):
+                            if 'prompts' in data:
+                                prompt_list = data['prompts']
+                                if isinstance(prompt_list, list):
+                                    prompts = prompt_list
+                                else:
+                                    prompts = [prompt_list]
+                            elif 'prompt' in data:
+                                prompts = [data['prompt']]
+                            elif 'input' in data:
+                                prompts = [data['input']]
+                            else:
+                                st.error("❌ JSON structure not recognized. Expected 'prompt', 'prompts', or 'input' field.")
+                                st.session_state.uploaded_prompts = []
+                                prompts = []
+                        
+                        st.session_state.uploaded_prompts = prompts
+                        
+                        if st.session_state.uploaded_prompts:
+                            st.success(f"✅ Loaded {len(st.session_state.uploaded_prompts)} prompts from JSON/JSONL file")
+                            if st.checkbox("Preview prompts", key="preview_json"):
+                                preview_df = pd.DataFrame({'prompt': st.session_state.uploaded_prompts[:5]})
+                                st.dataframe(preview_df, use_container_width=True)
                             
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
