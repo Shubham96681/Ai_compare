@@ -379,15 +379,74 @@ with st.sidebar:
                         
                         if st.session_state.uploaded_prompts:
                             st.success(f"✅ Loaded {len(st.session_state.uploaded_prompts)} prompts from JSON/JSONL file")
-                            if st.checkbox("Preview prompts", key="preview_json"):
-                                preview_df = pd.DataFrame({'prompt': st.session_state.uploaded_prompts[:5]})
-                                st.dataframe(preview_df, use_container_width=True)
+                            
+                            # Initialize selected prompts if not exists
+                            if 'selected_uploaded_prompts' not in st.session_state:
+                                st.session_state.selected_uploaded_prompts = st.session_state.uploaded_prompts.copy()
+                            
+                            # Show checkbox list for prompt selection
+                            with st.expander("📋 Select Prompts to Test", expanded=True):
+                                st.markdown(f"**Total prompts loaded:** {len(st.session_state.uploaded_prompts)}")
+                                
+                                # Select all / Deselect all buttons
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.button("✅ Select All", key="select_all_uploaded", use_container_width=True):
+                                        st.session_state.selected_uploaded_prompts = st.session_state.uploaded_prompts.copy()
+                                        st.rerun()
+                                with col2:
+                                    if st.button("❌ Deselect All", key="deselect_all_uploaded", use_container_width=True):
+                                        st.session_state.selected_uploaded_prompts = []
+                                        st.rerun()
+                                
+                                st.markdown("---")
+                                
+                                # Show checkboxes for each prompt
+                                selected_prompts = []
+                                for idx, prompt in enumerate(st.session_state.uploaded_prompts):
+                                    # Truncate prompt for display (show first 100 chars)
+                                    prompt_preview = prompt[:100] + "..." if len(prompt) > 100 else prompt
+                                    prompt_preview = prompt_preview.replace('\n', ' ').replace('\r', ' ')
+                                    
+                                    # Checkbox for each prompt
+                                    is_selected = st.checkbox(
+                                        f"Prompt {idx + 1}: {prompt_preview}",
+                                        value=prompt in st.session_state.selected_uploaded_prompts,
+                                        key=f"prompt_checkbox_{idx}",
+                                        help=f"Click to select/deselect this prompt"
+                                    )
+                                    
+                                    if is_selected:
+                                        selected_prompts.append(prompt)
+                                
+                                # Update session state
+                                st.session_state.selected_uploaded_prompts = selected_prompts
+                                
+                                st.markdown("---")
+                                st.info(f"**Selected:** {len(selected_prompts)} / {len(st.session_state.uploaded_prompts)} prompts")
+                                
+                                # Show preview of selected prompts
+                                if selected_prompts:
+                                    with st.expander("👁️ Preview Selected Prompts", expanded=False):
+                                        for idx, prompt in enumerate(selected_prompts[:5], 1):
+                                            st.markdown(f"**Prompt {idx}:**")
+                                            st.text_area(
+                                                "",
+                                                value=prompt[:500] + ("..." if len(prompt) > 500 else ""),
+                                                height=100,
+                                                key=f"preview_prompt_{idx}",
+                                                disabled=True,
+                                                label_visibility="collapsed"
+                                            )
+                                        if len(selected_prompts) > 5:
+                                            st.caption(f"... and {len(selected_prompts) - 5} more prompts")
                             
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 st.session_state.uploaded_prompts = []
         else:
             st.session_state.uploaded_prompts = []
+            st.session_state.selected_uploaded_prompts = []
             st.session_state.uploaded_file_type = None
     
     # Settings Section in Sidebar
@@ -441,13 +500,22 @@ with st.sidebar:
     prompts_to_use = []
     if user_prompt.strip():
         prompts_to_use.append(user_prompt)
-    if st.session_state.uploaded_prompts:
-        prompts_to_use.extend(st.session_state.uploaded_prompts)
+    # Use selected prompts from uploaded file (if any)
+    if st.session_state.get('selected_uploaded_prompts'):
+        prompts_to_use.extend(st.session_state.selected_uploaded_prompts)
     
     if prompts_to_use:
-        st.info(f"**📊 Total Prompts:** {len(prompts_to_use)}")
+        custom_count = 1 if user_prompt.strip() else 0
+        selected_count = len(st.session_state.get('selected_uploaded_prompts', []))
+        st.info(f"**📊 Total Prompts Selected:** {len(prompts_to_use)}")
         if len(prompts_to_use) > 1:
-            st.caption(f"• 1 custom" + (f" + {len(st.session_state.uploaded_prompts)} from file" if st.session_state.uploaded_prompts else ""))
+            parts = []
+            if custom_count > 0:
+                parts.append(f"{custom_count} custom")
+            if selected_count > 0:
+                parts.append(f"{selected_count} from file")
+            if parts:
+                st.caption(f"• {' + '.join(parts)}")
     
     # Run Button in Sidebar
     if st.button("🚀 Run Evaluation", type="primary", use_container_width=True, key="run_eval_sidebar"):
