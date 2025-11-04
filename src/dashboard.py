@@ -259,26 +259,30 @@ def _extract_questions_from_text(text: str) -> str:
                 # Track if we're in a CSV double-quote sequence (""")
                 csv_double_quote = False
                 
-                for i in range(bracket_start, len(after_marker)):
+                i = bracket_start
+                while i < len(after_marker):
                     char = after_marker[i]
                     
                     if escape_next:
                         escape_next = False
+                        i += 1
                         continue
                     
                     # Check for CSV double quotes (""")
                     if i + 1 < len(after_marker) and char == '"' and after_marker[i+1] == '"':
                         # This is a CSV double quote - toggle string state
                         in_string = not in_string
-                        i += 1  # Skip next quote
+                        i += 2  # Skip both quotes
                         continue
                     
                     if char == '\\':
                         escape_next = True
+                        i += 1
                         continue
                     
                     if char == '"' and not escape_next:
                         in_string = not in_string
+                        i += 1
                         continue
                     
                     if not in_string:
@@ -289,6 +293,8 @@ def _extract_questions_from_text(text: str) -> str:
                             if bracket_count == 0:
                                 bracket_end = i + 1
                                 break
+                    
+                    i += 1
                 
                 if bracket_end > 0:
                     # Extract the JSON array string
