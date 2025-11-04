@@ -743,9 +743,9 @@ with st.sidebar:
                         
                         # If still no data, show error
                         if data is None:
-                        st.error(f"❌ Error parsing JSON file: {json_error or 'Invalid JSON format. Please ensure the file is valid JSON or JSONL format.'}")
-                        st.session_state.uploaded_prompts = []
-                    else:
+                            st.error(f"❌ Error parsing JSON file: {json_error or 'Invalid JSON format. Please ensure the file is valid JSON or JSONL format.'}")
+                            st.session_state.uploaded_prompts = []
+                        else:
                         # Handle different JSON structures
                         prompts = []
                         
