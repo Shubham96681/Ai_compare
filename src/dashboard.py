@@ -812,11 +812,11 @@ with st.sidebar:
                             st.session_state.uploaded_prompts = prompts
                             
                             if st.session_state.uploaded_prompts:
-                            st.success(f"✅ Loaded {len(st.session_state.uploaded_prompts)} prompts from JSON/JSONL file")
-                            
-                            # Initialize selected prompts if not exists
-                            if 'selected_uploaded_prompts' not in st.session_state:
-                                st.session_state.selected_uploaded_prompts = st.session_state.uploaded_prompts.copy()
+                                st.success(f"✅ Loaded {len(st.session_state.uploaded_prompts)} prompts from JSON/JSONL file")
+                                
+                                # Initialize selected prompts if not exists
+                                if 'selected_uploaded_prompts' not in st.session_state:
+                                    st.session_state.selected_uploaded_prompts = st.session_state.uploaded_prompts.copy()
                             
                             # Show checkbox list for prompt selection
                             with st.expander("📋 Select Prompts to Test", expanded=True):
