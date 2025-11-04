@@ -272,16 +272,13 @@ with st.sidebar:
                         with st.expander("📋 Select Prompts to Test", expanded=True):
                             st.markdown(f"**Total prompts loaded:** {len(st.session_state.uploaded_prompts)}")
                             
-                            # Select all / Deselect all buttons
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("✅ Select All", key="select_all_csv", use_container_width=True):
-                                    st.session_state.selected_uploaded_prompts = st.session_state.uploaded_prompts.copy()
-                                    st.rerun()
-                            with col2:
-                                if st.button("❌ Deselect All", key="deselect_all_csv", use_container_width=True):
-                                    st.session_state.selected_uploaded_prompts = []
-                                    st.rerun()
+                            # Select all / Deselect all buttons (stacked vertically)
+                            if st.button("✅ Select All", key="select_all_csv", use_container_width=True):
+                                st.session_state.selected_uploaded_prompts = st.session_state.uploaded_prompts.copy()
+                                st.rerun()
+                            if st.button("❌ Deselect All", key="deselect_all_csv", use_container_width=True):
+                                st.session_state.selected_uploaded_prompts = []
+                                st.rerun()
                             
                             st.markdown("---")
                             
@@ -448,16 +445,13 @@ with st.sidebar:
                             with st.expander("📋 Select Prompts to Test", expanded=True):
                                 st.markdown(f"**Total prompts loaded:** {len(st.session_state.uploaded_prompts)}")
                                 
-                                # Select all / Deselect all buttons
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.button("✅ Select All", key="select_all_uploaded", use_container_width=True):
-                                        st.session_state.selected_uploaded_prompts = st.session_state.uploaded_prompts.copy()
-                                        st.rerun()
-                                with col2:
-                                    if st.button("❌ Deselect All", key="deselect_all_uploaded", use_container_width=True):
-                                        st.session_state.selected_uploaded_prompts = []
-                                        st.rerun()
+                                # Select all / Deselect all buttons (stacked vertically)
+                                if st.button("✅ Select All", key="select_all_uploaded", use_container_width=True):
+                                    st.session_state.selected_uploaded_prompts = st.session_state.uploaded_prompts.copy()
+                                    st.rerun()
+                                if st.button("❌ Deselect All", key="deselect_all_uploaded", use_container_width=True):
+                                    st.session_state.selected_uploaded_prompts = []
+                                    st.rerun()
                                 
                                 st.markdown("---")
                                 
