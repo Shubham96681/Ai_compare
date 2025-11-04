@@ -27,6 +27,102 @@ from src.metrics_logger import MetricsLogger
 from src.report_generator import ReportGenerator
 from src.utils.json_utils import is_valid_json
 
+
+def extract_prompt_from_json_item(item: dict) -> str:
+    """
+    Extract prompt text from various JSON structures.
+    Handles Bedrock CloudTrail format and other common formats.
+    """
+    if not isinstance(item, dict):
+        return str(item) if item else ""
+    
+    # Try direct prompt fields first
+    for field in ['prompt', 'input', 'text', 'question', 'query', 'message']:
+        if field in item:
+            value = item[field]
+            if isinstance(value, str) and len(value.strip()) > 0:
+                return value.strip()
+            elif isinstance(value, dict):
+                # Recursively search in nested dict
+                nested = extract_prompt_from_json_item(value)
+                if nested:
+                    return nested
+    
+    # Handle Bedrock CloudTrail format: input.inputBodyJson.messages[].content[].text
+    if 'input' in item:
+        input_data = item['input']
+        if isinstance(input_data, dict):
+            # Check for inputBodyJson
+            if 'inputBodyJson' in input_data:
+                input_body = input_data['inputBodyJson']
+                if isinstance(input_body, dict) and 'messages' in input_body:
+                    messages = input_body['messages']
+                    if isinstance(messages, list):
+                        # Combine all user messages
+                        user_messages = []
+                        for msg in messages:
+                            if isinstance(msg, dict) and msg.get('role') == 'user':
+                                content = msg.get('content', [])
+                                if isinstance(content, list):
+                                    for content_item in content:
+                                        if isinstance(content_item, dict) and 'text' in content_item:
+                                            text = content_item['text']
+                                            if isinstance(text, str) and text.strip():
+                                                user_messages.append(text.strip())
+                                        elif isinstance(content_item, str) and content_item.strip():
+                                            user_messages.append(content_item.strip())
+                                elif isinstance(content, str) and content.strip():
+                                    user_messages.append(content.strip())
+                        
+                        if user_messages:
+                            return "\n\n".join(user_messages)
+            
+            # Check for direct messages array
+            if 'messages' in input_data:
+                messages = input_data['messages']
+                if isinstance(messages, list):
+                    user_messages = []
+                    for msg in messages:
+                        if isinstance(msg, dict) and msg.get('role') == 'user':
+                            content = msg.get('content', [])
+                            if isinstance(content, list):
+                                for content_item in content:
+                                    if isinstance(content_item, dict) and 'text' in content_item:
+                                        text = content_item['text']
+                                        if isinstance(text, str) and text.strip():
+                                            user_messages.append(text.strip())
+                                    elif isinstance(content_item, str) and content_item.strip():
+                                        user_messages.append(content_item.strip())
+                            elif isinstance(content, str) and content.strip():
+                                user_messages.append(content.strip())
+                    
+                    if user_messages:
+                        return "\n\n".join(user_messages)
+    
+    # Try to find any string value that looks like a prompt (longer than 20 chars, not a timestamp)
+    for key, value in item.items():
+        if isinstance(value, str) and len(value.strip()) > 20:
+            # Skip timestamps and IDs
+            if not (key.lower() in ['timestamp', 'time', 'id', 'requestid', 'date'] or 
+                    value.strip().startswith('202') or  # Dates like 2025-10-01
+                    len(value.strip().split()) < 3):  # Too short
+                return value.strip()
+    
+    # Last resort: try to extract from any nested structures
+    for key, value in item.items():
+        if isinstance(value, dict):
+            nested = extract_prompt_from_json_item(value)
+            if nested:
+                return nested
+        elif isinstance(value, list) and len(value) > 0:
+            # Check first item in list
+            if isinstance(value[0], dict):
+                nested = extract_prompt_from_json_item(value[0])
+                if nested:
+                    return nested
+    
+    return ""
+
 # Page configuration
 st.set_page_config(
     page_title="AI Cost Optimizer Pro - Enterprise LLM Analytics",
@@ -403,25 +499,13 @@ with st.sidebar:
                         if isinstance(data, list):
                             for item in data:
                                 if isinstance(item, dict):
-                                    # Try to extract prompt from various field names
-                                    if 'prompt' in item:
-                                        prompts.append(item['prompt'])
-                                    elif 'input' in item and isinstance(item['input'], str):
-                                        prompts.append(item['input'])
-                                    elif 'text' in item and isinstance(item['text'], str):
-                                        prompts.append(item['text'])
-                                    elif 'message' in item:
-                                        msg = item['message']
-                                        if isinstance(msg, str):
-                                            prompts.append(msg)
-                                        elif isinstance(msg, dict) and 'content' in msg:
-                                            prompts.append(str(msg['content']))
+                                    # Use comprehensive extraction function
+                                    extracted_prompt = extract_prompt_from_json_item(item)
+                                    if extracted_prompt:
+                                        prompts.append(extracted_prompt)
                                     else:
-                                        # Try to find any string value that looks like a prompt
-                                        for key, value in item.items():
-                                            if isinstance(value, str) and len(value) > 10:
-                                                prompts.append(value)
-                                                break
+                                        # Fallback: try to stringify the whole item
+                                        prompts.append(str(item))
                                 elif isinstance(item, str):
                                     prompts.append(item)
                         
@@ -430,17 +514,26 @@ with st.sidebar:
                             if 'prompts' in data:
                                 prompt_list = data['prompts']
                                 if isinstance(prompt_list, list):
-                                    prompts = prompt_list
+                                    # Extract prompts from each item in the list
+                                    for item in prompt_list:
+                                        if isinstance(item, dict):
+                                            extracted = extract_prompt_from_json_item(item)
+                                            if extracted:
+                                                prompts.append(extracted)
+                                        elif isinstance(item, str):
+                                            prompts.append(item)
                                 else:
-                                    prompts = [prompt_list]
-                            elif 'prompt' in data:
-                                prompts = [data['prompt']]
-                            elif 'input' in data:
-                                prompts = [data['input']]
+                                    extracted = extract_prompt_from_json_item(prompt_list) if isinstance(prompt_list, dict) else str(prompt_list)
+                                    prompts = [extracted] if extracted else []
                             else:
-                                st.error("❌ JSON structure not recognized. Expected 'prompt', 'prompts', or 'input' field.")
-                                st.session_state.uploaded_prompts = []
-                                prompts = []
+                                # Try to extract prompt from the dict
+                                extracted_prompt = extract_prompt_from_json_item(data)
+                                if extracted_prompt:
+                                    prompts = [extracted_prompt]
+                                else:
+                                    st.error("❌ Could not extract prompt from JSON. Please ensure the JSON contains a 'prompt', 'input', or 'messages' field.")
+                                    st.session_state.uploaded_prompts = []
+                                    prompts = []
                         
                         st.session_state.uploaded_prompts = prompts
                         
