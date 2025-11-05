@@ -120,9 +120,11 @@ class BedrockEvaluator:
                     if is_valid and cleaned_json:
                         metrics["cleaned_response"] = cleaned_json
                 else:
-                    # If JSON wasn't expected, always validate but use None to indicate "not applicable"
-                    # This way we still show useful info (if response happens to be valid JSON)
-                    metrics["json_valid"] = None  # None = not checked/not applicable
+                    # If JSON wasn't expected, still validate and show result
+                    # This helps users see if their response happens to be valid JSON
+                    metrics["json_valid"] = is_valid if is_valid else False  # Show False instead of None
+                    if is_valid and cleaned_json:
+                        metrics["cleaned_response"] = cleaned_json
             
             # Calculate costs using actual token counts from API
             pricing = self.model_registry.get_model_pricing(model)

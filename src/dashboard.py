@@ -754,13 +754,17 @@ with st.sidebar:
                                         
                                         # Detect if JSON is expected - check multiple patterns
                                         extracted_lower = extracted_prompt.lower()
+                                        # Check for JSON-related keywords (case-insensitive)
                                         expected_json = (
                                             "json" in extracted_lower or
                                             "return the result in a json" in extracted_lower or
                                             "return the result in a json array" in extracted_lower or
+                                            "return the result in json" in extracted_lower or
+                                            "return the result in json array" in extracted_lower or
                                             "formatted as follows:" in extracted_lower or
                                             "formatted as follows" in extracted_lower or
-                                            "return" in extracted_lower and "json" in extracted_lower and "array" in extracted_lower
+                                            ("return" in extracted_lower and "json" in extracted_lower and "array" in extracted_lower) or
+                                            ("return" in extracted_lower and "json" in extracted_lower and "formatted" in extracted_lower)
                                         )
                                         
                                         # Extract category
