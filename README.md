@@ -2,6 +2,25 @@
 
 Compare multiple Bedrock-hosted LLMs using production-like prompts. The framework measures latency, token usage, JSON validity, and cost, aggregates results, and visualizes comparisons in a Streamlit dashboard.
 
+---
+
+## 📖 **IMPORTANT: Getting Started**
+
+**⚠️ NEW USERS: Please read the [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) first!**
+
+The manual run guide contains **detailed step-by-step instructions** for:
+- Setting up your environment
+- Configuring AWS credentials
+- Running evaluations
+- Launching the dashboard
+- Troubleshooting common issues
+
+**👉 [Click here to read the Manual Run Guide](MANUAL_RUN_GUIDE.md) 👈**
+
+This README provides a quick overview, but the manual guide has comprehensive instructions for first-time setup.
+
+---
+
 **⚠️ This project is configured to use only two models:**
 - Claude 3.7 Sonnet (`us.anthropic.claude-3-7-sonnet-20250219-v1:0`)
 - Llama 3.2 11B Instruct (`us.meta.llama3-2-11b-instruct-v1:0`)
@@ -51,14 +70,20 @@ AICostOptimizer/
 
 ---
 
-## 🔧 Step-by-Step Setup & Usage Guide
+## 🔧 Quick Start (Summary)
+
+> **💡 For detailed step-by-step instructions, see [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md)**
+
+This is a quick reference. For comprehensive setup instructions, please refer to the [Manual Run Guide](MANUAL_RUN_GUIDE.md).
 
 ### Step 1: Clone the Repository
 
 ```bash
 git clone <repository-url>
-cd AICostOptimizer
+cd Optimization
 ```
+
+> **📚 Next:** Read [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) for detailed setup instructions!
 
 ### Step 2: Set Up Python Virtual Environment
 
@@ -295,6 +320,8 @@ python scripts/run_evaluation.py --models all --limit 5 --skip-report
 
 ### Step 8: View Results in Dashboard
 
+> **📚 For detailed dashboard setup and troubleshooting, see [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) - Step 12**
+
 1. Launch the Streamlit dashboard:
    ```bash
    streamlit run src/dashboard.py
@@ -306,6 +333,8 @@ python scripts/run_evaluation.py --models all --limit 5 --skip-report
    ```
 
 3. If it doesn't open automatically, copy the URL from the terminal output.
+
+**Note:** If you encounter connection issues, check the [Troubleshooting section](MANUAL_RUN_GUIDE.md#troubleshooting) in the manual guide.
 
 **Dashboard Features:**
 
@@ -364,29 +393,36 @@ python scripts/run_evaluation.py --models all --limit 5 --skip-report
 
 ## 🐛 Troubleshooting
 
+> **📚 For comprehensive troubleshooting guide, see [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) - Troubleshooting Section**
+
 ### Error: "ModuleNotFoundError: No module named 'tqdm'"
 **Solution:** Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
+See [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) - Step 4 for detailed instructions.
 
 ### Error: "NoCredentialsError" or "Unable to locate credentials"
-**Solution:** Configure AWS credentials (see Step 4)
+**Solution:** Configure AWS credentials. See [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) - Step 5 for detailed setup instructions.
 
 ### Error: "An error occurred (ValidationException)"
-**Solution:** Check that your model IDs in `configs/models.yaml` match available models in your AWS account
+**Solution:** Check that your model IDs in `configs/models.yaml` match available models in your AWS account. See [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) - Step 8.
 
 ### Error: "AccessDeniedException"
-**Solution:** Ensure your AWS credentials have permissions for Amazon Bedrock
+**Solution:** Ensure your AWS credentials have permissions for Amazon Bedrock. See [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) - Step 6.
 
-### Dashboard shows "No data found"
-**Solution:** Run evaluation first (Step 7), then check file paths in dashboard sidebar
+### Dashboard shows "No data found" or connection refused
+**Solution:** 
+- Run evaluation first (Step 7), then check file paths in dashboard sidebar
+- See [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) - Step 12 for dashboard launch instructions
+- Check the troubleshooting section in the manual guide for connection issues
 
 ### Evaluation is slow
 **Solution:** 
 - Use `--limit` to test with fewer prompts first
 - Check your internet connection
 - Verify Bedrock model availability in your region
+- See [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) - Step 9 for test evaluation instructions
 
 ---
 
@@ -482,6 +518,24 @@ prompt_id,prompt,expected_json,category
 - Use different run IDs to compare different configurations
 - Export results regularly for tracking over time
 - Monitor AWS costs in CloudWatch
+
+---
+
+## 📚 Need Help?
+
+**If you're setting up the project for the first time:**
+
+1. **Read the [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md)** - It has step-by-step instructions for everything
+2. **Check the Troubleshooting section** in the manual guide for common issues
+3. **Follow the checklist** at the end of the manual guide to ensure you've completed all steps
+
+The manual guide covers:
+- ✅ Virtual environment setup
+- ✅ Dependency installation  
+- ✅ AWS credentials configuration
+- ✅ Running evaluations
+- ✅ Launching the dashboard
+- ✅ Troubleshooting
 
 ---
 

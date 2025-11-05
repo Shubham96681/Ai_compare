@@ -1,6 +1,9 @@
 # 📖 Manual Run Guide - Step-by-Step Instructions
 
-This guide provides detailed step-by-step instructions for manually running the Model Evaluation Framework for AWS Bedrock LLMs.
+> **🎯 This is the PRIMARY setup guide for this project.**  
+> If you just cloned this repository, **start here** and follow the steps in order.
+
+This guide provides detailed step-by-step instructions for manually running the Model Evaluation Framework for AWS Bedrock LLMs. Follow these instructions sequentially to set up and run the project successfully.
 
 ---
 
@@ -350,17 +353,24 @@ cat data/runs/model_comparison.csv
 
 View your results in an interactive dashboard:
 
-1. Start the Streamlit dashboard:
+1. **Activate your virtual environment** (if not already activated):
+   ```powershell
+   .venv\Scripts\Activate.ps1
+   ```
+
+2. Start the Streamlit dashboard:
    ```bash
    streamlit run src/dashboard.py
    ```
 
-2. The dashboard will automatically open in your browser at:
+3. The dashboard will automatically open in your browser at:
    ```
    http://localhost:8501
    ```
 
    If it doesn't open automatically, copy the URL from the terminal output and paste it into your browser.
+
+**Note:** On first run, Streamlit may ask for your email. You can skip this, or the project includes a `.streamlit/config.toml` file that prevents this prompt.
 
 **Expected output in terminal:**
 ```
