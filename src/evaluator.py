@@ -585,6 +585,8 @@ class BedrockEvaluator:
             r'```\s*\n(.*?)\n```',
             r'```json\s*(.*?)\s*```',
             r'```\s*(.*?)\s*```',
+            r'```json\s*(.*?)```',  # No newlines
+            r'```\s*(.*?)```',  # No newlines
         ]
         
         for pattern in json_block_patterns:
@@ -598,7 +600,7 @@ class BedrockEvaluator:
                     continue
         
         # Try to find JSON object/array in the text
-        # Look for balanced brackets
+        # Look for balanced brackets - try both { } and [ ]
         text_clean = text.strip()
         
         # Find first { or [
@@ -609,6 +611,7 @@ class BedrockEvaluator:
                 bracket_count = 0
                 in_string = False
                 escape_next = False
+                last_valid_end = -1
                 
                 for i in range(start_idx, len(text_clean)):
                     char = text_clean[i]
@@ -637,11 +640,25 @@ class BedrockEvaluator:
                                     json.loads(json_candidate)
                                     return True, json_candidate
                                 except (json.JSONDecodeError, TypeError):
+                                    # Store this as potential end point
+                                    last_valid_end = i
                                     break
+                    
+                    # If we've gone too far without finding a match, try to use last valid end
+                    if i - start_idx > 50000:  # Safety limit
+                        break
                 
-                # If we found a start but no match, try to extract anyway
+                # If we found a start but no exact match, try to extract from start to last valid end
+                if last_valid_end > start_idx:
+                    json_candidate = text_clean[start_idx:last_valid_end+1]
+                    try:
+                        json.loads(json_candidate)
+                        return True, json_candidate
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                
+                # Last resort: try to find a reasonable end point by looking for the last closing bracket
                 if bracket_count > 0:
-                    # Try to find a reasonable end point
                     end_idx = text_clean.rfind(end_char)
                     if end_idx > start_idx:
                         json_candidate = text_clean[start_idx:end_idx+1]
@@ -650,5 +667,22 @@ class BedrockEvaluator:
                             return True, json_candidate
                         except (json.JSONDecodeError, TypeError):
                             pass
+        
+        # Additional fallback: Try regex to find JSON-like structures
+        # Look for arrays or objects that might be valid JSON
+        json_patterns = [
+            r'\[[\s\S]*?\]',  # Array pattern
+            r'\{[\s\S]*?\}',  # Object pattern
+        ]
+        
+        for pattern in json_patterns:
+            matches = re.finditer(pattern, text, re.DOTALL)
+            for match in matches:
+                json_candidate = match.group(0)
+                try:
+                    json.loads(json_candidate)
+                    return True, json_candidate
+                except (json.JSONDecodeError, TypeError):
+                    continue
         
         return False, None
