@@ -854,6 +854,14 @@ with st.sidebar:
                                                     
                                                     if is_selected:
                                                         selected_prompts.append(full_prompt)
+                                                        # Store prompt metadata with the prompt for evaluation
+                                                        if 'prompt_metadata' not in st.session_state:
+                                                            st.session_state.prompt_metadata = {}
+                                                        st.session_state.prompt_metadata[full_prompt] = {
+                                                            "prompt_id": prompt_id,
+                                                            "expected_json": expected_json,
+                                                            "category": category
+                                                        }
                                             
                                             st.session_state.selected_uploaded_prompts = selected_prompts
                                             
@@ -1154,6 +1162,7 @@ with st.sidebar:
     if st.button("🚀 Run Evaluation", type="primary", use_container_width=True, key="run_eval_sidebar"):
         st.session_state.run_evaluation = True
         st.session_state.prompts_to_evaluate = prompts_to_use
+        st.session_state.prompts_with_metadata = prompts_with_metadata  # Store metadata
         st.rerun()
     
     # Support Section
@@ -1253,9 +1262,15 @@ with tab1:
     # Handle evaluation triggered from sidebar
     if st.session_state.run_evaluation:
         prompts_to_evaluate = st.session_state.prompts_to_evaluate
+        prompts_with_metadata = st.session_state.get('prompts_with_metadata', [])
         selected_model_names = st.session_state.selected_models
-        expect_json = st.session_state.get('expect_json_sidebar', True)
+        expect_json = st.session_state.get('expect_json_sidebar', True)  # Default fallback
         format_as_json = st.session_state.get('format_as_json_sidebar', False)
+        
+        # Create a mapping of prompt to its metadata for quick lookup
+        prompt_metadata_map = {}
+        for pm in prompts_with_metadata:
+            prompt_metadata_map[pm["prompt"]] = pm
         
         # Get model registry
         model_registry_result = load_model_registry(config_path)
@@ -1301,6 +1316,11 @@ with tab1:
                     current_evaluation = 0
                     
                     for prompt_idx, current_prompt in enumerate(prompts_to_evaluate):
+                        # Get metadata for this prompt if available
+                        prompt_meta = prompt_metadata_map.get(current_prompt, {})
+                        prompt_expected_json = prompt_meta.get("expected_json", expect_json)
+                        prompt_prompt_id = prompt_meta.get("prompt_id", f"prompt_{prompt_idx+1}" if len(prompts_to_evaluate) > 1 else None)
+                        
                         for model_idx, model in enumerate(selected_models):
                             if model is None:
                                 continue
@@ -1323,16 +1343,15 @@ with tab1:
                                         }
                                         final_prompt = json.dumps(prompt_json, indent=2)
                                 else:
-                                    if expect_json:
+                                    # Use prompt-specific expected_json, not the global setting
+                                    if prompt_expected_json:
                                         final_prompt = f"{current_prompt}\n\nPlease respond in valid JSON format."
-                                
-                                prompt_id = f"prompt_{prompt_idx+1}" if len(prompts_to_evaluate) > 1 else None
                                 
                                 metrics = evaluator.evaluate_prompt(
                                     prompt=final_prompt,
                                     model=model,
-                                    prompt_id=prompt_id,
-                                    expected_json=expect_json,
+                                    prompt_id=prompt_prompt_id,
+                                    expected_json=prompt_expected_json,  # Use prompt-specific expected_json
                                     run_id=f"dashboard_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                                 )
                                 results.append(metrics)
