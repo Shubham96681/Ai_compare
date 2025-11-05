@@ -1,0 +1,2 @@
+model_name,count,success_count,error_count,avg_input_tokens,avg_output_tokens,p50_latency_ms,p95_latency_ms,p99_latency_ms,min_latency_ms,max_latency_ms,json_valid_pct,avg_cost_usd_per_request,total_cost_usd
+"('Llama 3 70B Instruct',)",3,3,0,2141.0,531.3,11609.0,11734.1,11745.2,2298,11748,0.0,0.005611,0.016832

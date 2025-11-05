@@ -1,0 +1,662 @@
+timestamp,run_id,model_name,model_id,prompt_id,input_tokens,output_tokens,latency_ms,json_valid,error,status,cost_usd_input,cost_usd_output,cost_usd_total,response
+2025-10-31T14:57:42.442626Z,run_20251031_202730,Claude 3 Sonnet,anthropic.claude-3-sonnet-20240229-v1:0,1,1650,512,11314,False,,success,0.00495,0.00768,0.01263,"[
+  {
+    ""linkId"": ""01K6372DCE7PF23SCEY2TTSS3T"",
+    ""result"": ""Satisfied"",
+    ""evidence"": ""Service Charge Code: Community Support face to face (COMSUPFACE)"",
+    ""confidence"": 100
+  },
+  {
+    ""linkId"": ""01K6372KX0EKX7M13JDVMBZQ05"",
+    ""result"": ""NotApplicable"",
+    ""evidence"": ""The service code 'CSFACEYTH' is not mentioned in the progress note."",
+    ""confidence"": 100
+  },
+  {
+    ""linkId"": ""01K6372V4A6TNJFS4FRMR3GSFP"",
+    ""result"": ""Satisfied"",
+    ""evidence"": ""Service Charge Code: Commun"
+2025-10-31T14:58:07.225991Z,run_20251031_202730,Llama 3 70B Instruct,meta.llama3-70b-instruct-v1:0,1,1723,163,4486,False,,success,0.003446,0.000408,0.003854,"  Electronic Signature Date: 09/30/2025 1:01 PM
+
+  Electronic Signature Time: 1:01 PM
+
+  Electronic Signature IP Address: 192.168.1.1
+
+  Electronic Signature User ID: LARRY LAUVETZ
+
+  Electronic Signature Role: Practitioner
+
+  Electronic Signature Reason: Finalized Ambulatory Progress Note w/Columbia Assessment
+
+  Electronic Signature Status: Signed
+
+  Electronic Signature Date/Time: 09/30/2025 1:01 PM
+
+  Electronic Signature IP Address: 192.168.1.1
+
+  Electronic Signature User ID: LARRY LAUVETZ"
+2025-10-31T14:58:11.711262Z,run_20251031_202730,Titan Text Premier,amazon.titan-text-premier-v1,1,1494,0,312,False,Bedrock API error (ValidationException): The provided model identifier is invalid.,error,0.0,0.0,0.0,
+2025-10-31T14:58:12.025813Z,run_20251031_202730,Claude 3 Sonnet,anthropic.claude-3-sonnet-20240229-v1:0,2,2772,0,335,False,"Bedrock API error (ResourceNotFoundException): Model use case details have not been submitted for this account. Fill out the Anthropic use case details form before using the model. If you have already filled out the form, try again in 15 minutes.",error,0.0,0.0,0.0,
+2025-10-31T14:58:12.362420Z,run_20251031_202730,Llama 3 70B Instruct,meta.llama3-70b-instruct-v1:0,2,2930,987,11945,False,,success,0.00586,0.002468,0.008328," Electronically Signed Date: 09/30/2025 1:03 PM
+
+ Original Submit DateTime: 09/30/2025 1:03 PM
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+"
+2025-10-31T14:58:24.307873Z,run_20251031_202730,Titan Text Premier,amazon.titan-text-premier-v1,2,2811,0,316,False,Bedrock API error (ValidationException): The provided model identifier is invalid.,error,0.0,0.0,0.0,
+2025-10-31T14:58:24.623498Z,run_20251031_202730,Claude 3 Sonnet,anthropic.claude-3-sonnet-20240229-v1:0,3,1709,0,334,False,"Bedrock API error (ResourceNotFoundException): Model use case details have not been submitted for this account. Fill out the Anthropic use case details form before using the model. If you have already filled out the form, try again in 15 minutes.",error,0.0,0.0,0.0,
+2025-10-31T14:58:24.959380Z,run_20251031_202730,Llama 3 70B Instruct,meta.llama3-70b-instruct-v1:0,3,1770,521,11658,False,,success,0.00354,0.001303,0.004843,"  Date Electronically Signed:  09/27/2025 10:45 AM
+  Date of Service:  09/26/2025
+  Date of Submission:  09/27/2025 10:45 AM
+  Travel Time:  0/2:46-2:59
+  Start Travel Time:  2:46
+  End Travel Time:  2:59
+  Service Start Time:  12:55
+  Service End Time:  3:04
+  Minutes Deducted:  5
+  Service Location:  Other (99)
+  Is this an in-person visit?:  Yes
+  Client's Identity Verified:  Yes
+  Reason for Audio Only:  Not Applicable
+  Telehealth Offered:  No
+  Care Setting:  Community
+  Service Code:  COM"
+2025-10-31T14:58:36.617724Z,run_20251031_202730,Titan Text Premier,amazon.titan-text-premier-v1,3,1563,0,311,False,Bedrock API error (ValidationException): The provided model identifier is invalid.,error,0.0,0.0,0.0,
+2025-10-31T16:21:17.387902Z,run_20251031_215117,Claude 3 Sonnet,anthropic.claude-3-sonnet-20240229-v1:0,1,1650,0,1229,False,"Bedrock API error (ResourceNotFoundException): Model use case details have not been submitted for this account. Fill out the Anthropic use case details form before using the model. If you have already filled out the form, try again in 15 minutes.",error,0.0,0.0,0.0,
+2025-10-31T16:21:18.877003Z,run_20251031_215117,Llama 3 70B Instruct,meta.llama3-70b-instruct-v1:0,1,1723,68,2298,False,,success,0.003446,0.00017,0.003616,"  Electronic Signature Date: 09/30/2025 1:01 PM
+
+  Electronic Signature Time: 1:01 PM
+
+  Electronic Signature IP Address: 10.10.10.10
+
+  Electronic Signature User ID: LARRY LAUVETZ
+
+  Electronic Signature User Name: LARRY LAUVETZ, LPC"
+2025-10-31T16:21:21.176685Z,run_20251031_215117,Titan Text Premier,amazon.titan-text-premier-v1,1,1494,0,298,False,Bedrock API error (ValidationException): The provided model identifier is invalid.,error,0.0,0.0,0.0,
+2025-10-31T16:21:21.480039Z,run_20251031_215117,Claude 3 Sonnet,anthropic.claude-3-sonnet-20240229-v1:0,2,2772,0,336,False,"Bedrock API error (ResourceNotFoundException): Model use case details have not been submitted for this account. Fill out the Anthropic use case details form before using the model. If you have already filled out the form, try again in 15 minutes.",error,0.0,0.0,0.0,
+2025-10-31T16:21:21.816749Z,run_20251031_215117,Llama 3 70B Instruct,meta.llama3-70b-instruct-v1:0,2,2930,987,11609,False,,success,0.00586,0.002468,0.008328," Electronically Signed Date: 09/30/2025 1:03 PM
+
+ Original Submit DateTime: 09/30/2025 1:03 PM
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+"
+2025-10-31T16:21:33.427564Z,run_20251031_215117,Titan Text Premier,amazon.titan-text-premier-v1,2,2811,0,299,False,Bedrock API error (ValidationException): The provided model identifier is invalid.,error,0.0,0.0,0.0,
+2025-10-31T16:21:33.726762Z,run_20251031_215117,Claude 3 Sonnet,anthropic.claude-3-sonnet-20240229-v1:0,3,1709,0,327,False,"Bedrock API error (ResourceNotFoundException): Model use case details have not been submitted for this account. Fill out the Anthropic use case details form before using the model. If you have already filled out the form, try again in 15 minutes.",error,0.0,0.0,0.0,
+2025-10-31T16:21:34.057798Z,run_20251031_215117,Llama 3 70B Instruct,meta.llama3-70b-instruct-v1:0,3,1770,539,11748,False,,success,0.00354,0.001348,0.004888,"  Electronic Signature Date/Time:  09/30/2025 1:01 PM
+
+Here is the JSON array response:
+
+[{
+  ""linkId"": ""01K636ZBEYHPEXA1BPW37PM2G3"",
+  ""result"": ""Satisfied"",
+  ""evidence"": ""The service was submitted on 09/30/2025 1:01 PM, which is before 11:59PM on the 3rd day after the date of service (09/26/2025)."",
+  ""confidence"": ""100""
+},{
+  ""linkId"": ""01K636ZJ1504W15VDC9J2FDHHB"",
+  ""result"": ""Satisfied"",
+  ""evidence"": ""The service was submitted on 09/30/2025 1:01 PM, which is before 11:59PM on or before th"
+2025-10-31T16:21:45.806839Z,run_20251031_215117,Titan Text Premier,amazon.titan-text-premier-v1,3,1563,0,293,False,Bedrock API error (ValidationException): The provided model identifier is invalid.,error,0.0,0.0,0.0,
+2025-11-03T08:11:00.460624Z,dashboard_20251103_134100,Claude 3.5 Sonnet,us.anthropic.claude-3-5-sonnet-20240620-v1:0,,11,214,8413,True,,success,3.3e-05,0.00321,0.003243,"{
+  ""definition"": ""Python is a high-level, interpreted programming language"",
+  ""key_features"": [
+    ""Easy to learn and read"",
+    ""Versatile and widely used"",
+    ""Large standard library"",
+    ""Dynamic typing"",
+    ""Object-oriented programming support""
+  ],
+  ""created_by"": ""Guido van Rossum"",
+  ""first_released"": 1991,
+  ""current_stable_version"": ""3.11.3"",
+  ""popular_uses"": [
+    ""Web development"",
+    ""Data analysis"",
+    ""Artificial intelligence"",
+    ""Scientific computing"",
+    ""Automation a"
+2025-11-03T08:11:08.880782Z,dashboard_20251103_134108,Llama 3.1 70B Instruct,us.meta.llama3-1-70b-instruct-v1:0,,12,229,6445,False,,success,2.4e-05,0.000572,0.000597," I will be using this response to create a new file.
+
+```json
+{
+  ""name"": ""Python"",
+  ""description"": ""Python is a high-level, interpreted programming language that is widely used for web development, scientific computing, data analysis, artificial intelligence, and more. It is known for its simplicity, readability, and ease of use, making it a popular choice among beginners and experienced developers alike."",
+  ""features"": [
+    ""High-level language"",
+    ""Interpreted language"",
+    ""Object-orie"
