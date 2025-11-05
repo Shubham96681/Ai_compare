@@ -439,25 +439,55 @@ class BedrockEvaluator:
                 accept="application/json"
             )
             
-            # Parse response
-            response_body_raw = response["body"].read()
+            # Parse response - ensure body is read correctly
+            response_body_stream = response["body"]
+            if hasattr(response_body_stream, 'read'):
+                # Reset stream position if possible
+                try:
+                    response_body_stream.seek(0)
+                except (AttributeError, io.UnsupportedOperation):
+                    pass
+                response_body_raw = response_body_stream.read()
+            else:
+                response_body_raw = response_body_stream
+            
+            # Decode if bytes
+            if isinstance(response_body_raw, bytes):
+                response_body_raw = response_body_raw.decode('utf-8')
+            
             response_body = json.loads(response_body_raw)
             
             # Extract text based on provider
             if provider == "meta" or "llama" in model_id.lower():
-                # Meta Llama models return response in different possible fields
-                response_text = (
-                    response_body.get("generation", "") or 
-                    response_body.get("generated_text", "") or
-                    response_body.get("output", "") or
-                    response_body.get("text", "")
-                )
+                # Meta Llama models return response in "generation" field
+                # Check all possible fields systematically
+                response_text = ""
                 
-                # If still empty, check if it's in a nested structure
-                if not response_text and "results" in response_body:
+                # Primary field for Llama models
+                if "generation" in response_body:
+                    response_text = response_body["generation"]
+                # Secondary fields
+                elif "generated_text" in response_body:
+                    response_text = response_body["generated_text"]
+                elif "output" in response_body:
+                    response_text = response_body["output"]
+                elif "text" in response_body:
+                    response_text = response_body["text"]
+                # Check nested results array
+                elif "results" in response_body:
                     results = response_body.get("results", [])
                     if results and isinstance(results, list) and len(results) > 0:
-                        response_text = results[0].get("generated_text", "") or results[0].get("text", "")
+                        first_result = results[0]
+                        response_text = (
+                            first_result.get("generated_text", "") or
+                            first_result.get("text", "") or
+                            first_result.get("output", "") or
+                            first_result.get("generation", "")
+                        )
+                
+                # Ensure response_text is a string
+                if not isinstance(response_text, str):
+                    response_text = str(response_text) if response_text else ""
                 
                 # Check for token usage in Meta Llama response
                 # Meta models may return: usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
@@ -465,8 +495,7 @@ class BedrockEvaluator:
                 output_tokens = (
                     usage.get("completion_tokens") or 
                     usage.get("generation_tokens") or 
-                    usage.get("output_tokens") or
-                    usage.get("total_tokens", 0)  # Fallback to total_tokens if available
+                    usage.get("output_tokens") or 0
                 )
                 
                 # If output_tokens is 0 but we have response_text, estimate tokens
