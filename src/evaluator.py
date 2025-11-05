@@ -456,7 +456,11 @@ class BedrockEvaluator:
             if isinstance(response_body_raw, bytes):
                 response_body_raw = response_body_raw.decode('utf-8')
             
-            response_body = json.loads(response_body_raw)
+            try:
+                response_body = json.loads(response_body_raw)
+            except json.JSONDecodeError as e:
+                # If JSON parsing fails, log the raw response for debugging
+                raise Exception(f"Failed to parse response as JSON. Raw response (first 500 chars): {response_body_raw[:500]}. Error: {e}")
             
             # Extract text based on provider
             if provider == "meta" or "llama" in model_id.lower():
@@ -464,7 +468,10 @@ class BedrockEvaluator:
                 # Check all possible fields systematically
                 response_text = ""
                 
-                # Primary field for Llama models
+                # Debug: Log response body keys for troubleshooting
+                response_keys = list(response_body.keys()) if isinstance(response_body, dict) else []
+                
+                # Primary field for Llama models - this is the standard field
                 if "generation" in response_body:
                     response_text = response_body["generation"]
                 # Secondary fields
@@ -485,6 +492,15 @@ class BedrockEvaluator:
                             first_result.get("output", "") or
                             first_result.get("generation", "")
                         )
+                else:
+                    # If no standard fields found, log available keys for debugging
+                    # This helps identify if response format is different
+                    if not response_text:
+                        # Try to find any string field that might contain the response
+                        for key, value in response_body.items():
+                            if isinstance(value, str) and len(value) > 10:
+                                response_text = value
+                                break
                 
                 # Ensure response_text is a string
                 if not isinstance(response_text, str):
@@ -502,6 +518,13 @@ class BedrockEvaluator:
                 # If output_tokens is 0 but we have response_text, estimate tokens
                 if output_tokens == 0 and response_text:
                     output_tokens = count_tokens(tokenizer_type, response_text)
+                
+                # If still no response, this might indicate an API issue
+                # Store the response body for debugging
+                if not response_text:
+                    # Log the response structure for debugging (first 1000 chars)
+                    debug_info = json.dumps(response_body, indent=2)[:1000]
+                    response_text = f"[DEBUG: No generation found. Response keys: {response_keys}. Response body: {debug_info}]"
             elif provider == "amazon" or "titan" in model_id.lower():
                 result = response_body.get("results", [{}])[0] if response_body.get("results") else {}
                 response_text = result.get("outputText", "")
