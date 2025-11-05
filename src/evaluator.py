@@ -440,15 +440,38 @@ class BedrockEvaluator:
             )
             
             # Parse response
-            response_body = json.loads(response["body"].read())
+            response_body_raw = response["body"].read()
+            response_body = json.loads(response_body_raw)
             
             # Extract text based on provider
             if provider == "meta" or "llama" in model_id.lower():
-                response_text = response_body.get("generation", "")
+                # Meta Llama models return response in different possible fields
+                response_text = (
+                    response_body.get("generation", "") or 
+                    response_body.get("generated_text", "") or
+                    response_body.get("output", "") or
+                    response_body.get("text", "")
+                )
+                
+                # If still empty, check if it's in a nested structure
+                if not response_text and "results" in response_body:
+                    results = response_body.get("results", [])
+                    if results and isinstance(results, list) and len(results) > 0:
+                        response_text = results[0].get("generated_text", "") or results[0].get("text", "")
+                
                 # Check for token usage in Meta Llama response
                 # Meta models may return: usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
                 usage = response_body.get("usage", {})
-                output_tokens = usage.get("completion_tokens") or usage.get("generation_tokens") or usage.get("output_tokens") or 0
+                output_tokens = (
+                    usage.get("completion_tokens") or 
+                    usage.get("generation_tokens") or 
+                    usage.get("output_tokens") or
+                    usage.get("total_tokens", 0)  # Fallback to total_tokens if available
+                )
+                
+                # If output_tokens is 0 but we have response_text, estimate tokens
+                if output_tokens == 0 and response_text:
+                    output_tokens = count_tokens(tokenizer_type, response_text)
             elif provider == "amazon" or "titan" in model_id.lower():
                 result = response_body.get("results", [{}])[0] if response_body.get("results") else {}
                 response_text = result.get("outputText", "")
