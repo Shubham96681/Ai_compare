@@ -110,9 +110,17 @@ jobs:
             echo "✅ Using startup script: scripts/start_streamlit.sh"
             echo "Starting Streamlit in background..."
             cd "$PROJECT_DIR"
-            nohup bash scripts/start_streamlit.sh > dashboard.log 2>&1 &
+            nohup bash scripts/start_streamlit.sh "$PROJECT_DIR" > dashboard.log 2>&1 &
             STREAMLIT_PID=$!
             echo "Started with PID: $STREAMLIT_PID"
+            sleep 2
+            # Verify the process is still running
+            if ! ps -p $STREAMLIT_PID > /dev/null 2>&1; then
+              echo "⚠️  Process $STREAMLIT_PID exited immediately, checking logs..."
+              if [ -f dashboard.log ]; then
+                cat dashboard.log
+              fi
+            fi
           else
             # Fallback: Use python3 -m streamlit directly
             echo "⚠️  Startup script not found, using direct command"
