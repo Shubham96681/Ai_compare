@@ -93,6 +93,12 @@ jobs:
           python3 -m streamlit cache clear 2>/dev/null || true
           rm -rf .streamlit/cache 2>/dev/null || true
           
+          echo "🔍 Running diagnostic test..."
+          if [ -f "scripts/test_streamlit.sh" ]; then
+            chmod +x scripts/test_streamlit.sh
+            bash scripts/test_streamlit.sh || true
+          fi
+          
           echo "🔄 Restarting application..."
           
           # Kill existing Streamlit processes
@@ -132,15 +138,19 @@ jobs:
           fi
           
           # Wait longer for Streamlit to start
-          echo "Waiting 10 seconds for Streamlit to start..."
-          sleep 10
+          echo "Waiting 15 seconds for Streamlit to start..."
+          sleep 15
           
           # Check if log file was created
           if [ ! -f "dashboard.log" ]; then
             echo "⚠️  Warning: dashboard.log not created yet"
+            echo "This means Streamlit failed to start immediately"
           else
-            echo "✅ Log file created, showing last 10 lines:"
-            tail -10 dashboard.log || true
+            echo "✅ Log file created, showing last 30 lines:"
+            tail -30 dashboard.log || true
+            echo ""
+            echo "Checking for errors in log:"
+            grep -i "error\|exception\|traceback\|failed\|cannot" dashboard.log | tail -20 || echo "No obvious errors found"
           fi
           
           # Check if process is still running
