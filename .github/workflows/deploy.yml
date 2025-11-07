@@ -61,8 +61,19 @@ jobs:
           echo "🎯 Starting Streamlit app using daemon script..."
           export PATH="$HOME/.local/bin:$PATH"
           
-          # Use the proven daemon script
-          ./scripts/start-streamlit-daemon.sh
+          # Use the proven daemon script with explicit error handling
+          if ./scripts/start-streamlit-daemon.sh; then
+            echo "✅ Daemon script executed successfully"
+          else
+            echo "❌ Daemon script failed with exit code: $?"
+            echo "📝 Checking if script exists:"
+            ls -la scripts/start-streamlit-daemon.sh
+            echo "📝 Checking logs:"
+            if [ -f dashboard.log ]; then
+              cat dashboard.log
+            fi
+            exit 1
+          fi
           
           # Wait a moment for process to start
           sleep 5
