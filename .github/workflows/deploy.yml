@@ -36,30 +36,48 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
           cd /home/ec2-user/Optimization
+          
+          echo "📥 Pulling latest changes..."
           git pull origin main
+          
+          echo "📦 Installing dependencies..."
           pip3 install -r requirements.txt
           
-          # Stop existing Streamlit process
+          echo "🛑 Stopping existing Streamlit process..."
+          # Graceful shutdown first
           pkill -f "streamlit run" || true
-          sleep 5
+          sleep 10
           
-          # Start new Streamlit process
+          # Force kill if still running
+          pkill -9 -f "streamlit run" || true
+          sleep 3
+          
+          echo "🎯 Starting Streamlit app..."
           export PATH="$HOME/.local/bin:$PATH"
           nohup python3 -m streamlit run src/dashboard.py \
             --server.port 8501 \
             --server.address 0.0.0.0 \
             --server.headless true \
+            --server.runOnSave false \
+            --browser.serverAddress "0.0.0.0" \
+            --browser.gatherUsageStats false \
             > dashboard.log 2>&1 &
           
-          echo "Deployment completed!"
-          echo "Waiting for app to start..."
-          sleep 10
+          echo "⏳ Waiting for app to start..."
+          # Wait and check if app starts
+          for i in {1..30}; do
+            if curl -f -s http://localhost:8501/ > /dev/null 2>&1; then
+              echo "✅ Streamlit app started successfully!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "❌ Streamlit app failed to start within 90 seconds"
+              echo "📝 Last 50 lines of log:"
+              tail -50 dashboard.log
+              exit 1
+            fi
+            sleep 3
+          done
           
-          # Basic check if process is running
-          if pgrep -f "streamlit run" > /dev/null; then
-            echo "Streamlit app is running successfully!"
-            echo "App should be available at: http://${{ secrets.EC2_HOST }}"
-          else
-            echo "Warning: Streamlit process not found"
-            exit 1
-          fi
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 App should be available at: http://${{ secrets.EC2_HOST }}"

@@ -6,18 +6,21 @@ echo "🔍 Performing health check..."
 # Check if Streamlit process is running
 if pgrep -f "streamlit run" > /dev/null; then
     echo "✅ Streamlit process is running"
+    echo "   PID: $(pgrep -f 'streamlit run')"
     
     # Check if port 8501 is accessible
     if netstat -tuln | grep ':8501' > /dev/null; then
         echo "✅ Port 8501 is listening"
         
-        # Try to curl the health endpoint (if available)
-        if curl -f -s http://localhost:8501/ > /dev/null; then
+        # Try to access the app
+        if curl -f -s --max-time 10 http://localhost:8501/ > /dev/null; then
             echo "✅ Streamlit app is responding"
             echo "🎉 Health check PASSED"
             exit 0
         else
             echo "⚠️  Streamlit app not responding on port 8501"
+            echo "📝 Checking logs..."
+            tail -20 dashboard.log
         fi
     else
         echo "❌ Port 8501 is not listening"
