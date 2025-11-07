@@ -44,46 +44,34 @@ jobs:
           pip3 install -r requirements.txt
           
           echo "🛑 Stopping existing Streamlit process..."
-          # Graceful shutdown first
           pkill -f "streamlit run" || true
-          sleep 5
-          
-          # Force kill if still running
+          sleep 3
           pkill -9 -f "streamlit run" || true
           sleep 2
           
-          # Ensure we're in the right directory
+          echo "🎯 Starting Streamlit app..."
+          export PATH="$HOME/.local/bin:$PATH"
           cd /home/ec2-user/Optimization
           
-          # Make sure daemon script is executable
-          chmod +x scripts/start-streamlit-daemon.sh
+          # Use simple nohup approach - most reliable
+          nohup python3 -m streamlit run src/dashboard.py \
+            --server.port 8501 \
+            --server.address 0.0.0.0 \
+            --server.headless true \
+            --server.runOnSave false \
+            --browser.serverAddress 0.0.0.0 \
+            --browser.gatherUsageStats false \
+            > dashboard.log 2>&1 &
           
-          echo "🎯 Starting Streamlit app using daemon script..."
-          export PATH="$HOME/.local/bin:$PATH"
-          
-          # Use the proven daemon script with explicit error handling
-          if ./scripts/start-streamlit-daemon.sh; then
-            echo "✅ Daemon script executed successfully"
-          else
-            echo "❌ Daemon script failed with exit code: $?"
-            echo "📝 Checking if script exists:"
-            ls -la scripts/start-streamlit-daemon.sh
-            echo "📝 Checking logs:"
-            if [ -f dashboard.log ]; then
-              cat dashboard.log
-            fi
-            exit 1
-          fi
-          
-          # Wait a moment for process to start
-          sleep 5
+          echo "⏳ Waiting for Streamlit to start..."
+          sleep 10
           
           # Check if process is running
           if pgrep -f "streamlit run" > /dev/null; then
-            ACTUAL_PID=$(pgrep -f "streamlit run" | head -1)
-            echo "✅ Streamlit process is running (PID: $ACTUAL_PID)"
+            PID=$(pgrep -f "streamlit run" | head -1)
+            echo "✅ Streamlit process is running (PID: $PID)"
           else
-            echo "❌ Streamlit process not found after startup!"
+            echo "❌ Streamlit process not found!"
             echo "📝 Checking logs:"
             if [ -f dashboard.log ]; then
               tail -50 dashboard.log
@@ -91,35 +79,18 @@ jobs:
             exit 1
           fi
           
+          # Wait for HTTP response
           echo "⏳ Waiting for app to respond..."
-          # Wait and check if app starts (reduced wait time since daemon script handles it)
-          for i in {1..20}; do
-            if curl -f -s --max-time 5 http://localhost:8501/ > /dev/null 2>&1; then
+          for i in {1..15}; do
+            if curl -f -s --max-time 3 http://localhost:8501/ > /dev/null 2>&1; then
               echo "✅ Streamlit app is responding!"
-              echo "Process PID: $(pgrep -f 'streamlit run' | head -1)"
               break
             fi
-            # Check if process is still running
-            if ! pgrep -f "streamlit run" > /dev/null; then
-              echo "❌ Streamlit process died during startup (attempt $i/20)"
-              echo "📝 Last 50 lines of log:"
-              if [ -f dashboard.log ]; then
-                tail -50 dashboard.log
-              fi
-              exit 1
+            if [ $i -eq 15 ]; then
+              echo "⚠️  App may still be starting, but process is running"
+              echo "📝 Process: $(pgrep -f 'streamlit run' | head -1)"
             fi
-            if [ $i -eq 20 ]; then
-              echo "⚠️  Streamlit may still be starting (waited 60 seconds)"
-              echo "📝 Process status:"
-              ps aux | grep streamlit | grep -v grep || echo "No streamlit process found"
-              echo "📝 Last 30 lines of log:"
-              if [ -f dashboard.log ]; then
-                tail -30 dashboard.log
-              fi
-              # Don't exit - process might still be starting
-              break
-            fi
-            sleep 3
+            sleep 2
           done
           
           echo "✅ Deployment completed successfully!"
