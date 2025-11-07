@@ -63,12 +63,12 @@ jobs:
           echo "👤 Committed by: ${{ github.actor }}"
           
           # Navigate to project directory
-          # Detect user from EC2_USER secret or default to ubuntu
+          # Detect user from EC2_USER secret or default to ec2-user
           EC2_USERNAME="${{ secrets.EC2_USER }}"
-          if [ "$EC2_USERNAME" = "ec2-user" ]; then
-            PROJECT_DIR="/home/ec2-user/Optimization"
-          else
+          if [ "$EC2_USERNAME" = "ubuntu" ]; then
             PROJECT_DIR="/home/ubuntu/Optimization"
+          else
+            PROJECT_DIR="/home/ec2-user/Optimization"
           fi
           
           if [ ! -d "$PROJECT_DIR" ]; then
