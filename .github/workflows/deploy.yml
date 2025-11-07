@@ -43,55 +43,58 @@ jobs:
           echo "📦 Installing dependencies..."
           pip3 install -r requirements.txt
           
-          echo "🛑 Stopping existing Streamlit process..."
-          pkill -f "streamlit run" || true
-          sleep 3
-          pkill -9 -f "streamlit run" || true
-          sleep 2
+          echo "🔄 Restarting Streamlit..."
           
-          echo "🎯 Starting Streamlit app..."
-          export PATH="$HOME/.local/bin:$PATH"
-          cd /home/ec2-user/Optimization
+          # Try systemd first (most reliable), fall back to manual
+          if sudo systemctl is-enabled streamlit-optimization.service > /dev/null 2>&1; then
+            echo "✅ Using systemd service (recommended)"
+            sudo systemctl restart streamlit-optimization.service
+            sleep 8
+            if sudo systemctl is-active streamlit-optimization.service > /dev/null; then
+              echo "✅ Systemd service is active"
+            else
+              echo "⚠️  Systemd service issue, checking status:"
+              sudo systemctl status streamlit-optimization.service --no-pager -l || true
+            fi
+          else
+            echo "⚠️  Systemd service not set up, using manual deployment"
+            pkill -f "streamlit run" || true
+            sleep 3
+            pkill -9 -f "streamlit run" || true
+            sleep 2
+            
+            export PATH="$HOME/.local/bin:$PATH"
+            cd /home/ec2-user/Optimization
+            
+            # Use disown to ensure process survives SSH disconnect
+            nohup bash -c "cd /home/ec2-user/Optimization && export PATH=\"\$HOME/.local/bin:\$PATH\" && python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --server.runOnSave false --browser.serverAddress 0.0.0.0 --browser.gatherUsageStats false" > dashboard.log 2>&1 &
+            STREAM_PID=$!
+            disown $STREAM_PID
+            
+            echo "Started with PID: $STREAM_PID"
+            sleep 10
+          fi
           
-          # Use simple nohup approach - most reliable
-          nohup python3 -m streamlit run src/dashboard.py \
-            --server.port 8501 \
-            --server.address 0.0.0.0 \
-            --server.headless true \
-            --server.runOnSave false \
-            --browser.serverAddress 0.0.0.0 \
-            --browser.gatherUsageStats false \
-            > dashboard.log 2>&1 &
-          
-          echo "⏳ Waiting for Streamlit to start..."
-          sleep 10
-          
-          # Check if process is running
+          # Verify it's running
           if pgrep -f "streamlit run" > /dev/null; then
             PID=$(pgrep -f "streamlit run" | head -1)
-            echo "✅ Streamlit process is running (PID: $PID)"
+            echo "✅ Streamlit is running (PID: $PID)"
           else
-            echo "❌ Streamlit process not found!"
-            echo "📝 Checking logs:"
+            echo "❌ Streamlit not running!"
             if [ -f dashboard.log ]; then
-              tail -50 dashboard.log
+              echo "📝 Logs:"
+              tail -30 dashboard.log
             fi
             exit 1
           fi
           
-          # Wait for HTTP response
-          echo "⏳ Waiting for app to respond..."
-          for i in {1..15}; do
-            if curl -f -s --max-time 3 http://localhost:8501/ > /dev/null 2>&1; then
-              echo "✅ Streamlit app is responding!"
-              break
-            fi
-            if [ $i -eq 15 ]; then
-              echo "⚠️  App may still be starting, but process is running"
-              echo "📝 Process: $(pgrep -f 'streamlit run' | head -1)"
-            fi
-            sleep 2
-          done
+          # Quick health check
+          sleep 3
+          if curl -f -s --max-time 5 http://localhost:8501/ > /dev/null 2>&1; then
+            echo "✅ App is responding!"
+          else
+            echo "⚠️  App may still be starting (process is running)"
+          fi
           
           echo "✅ Deployment completed successfully!"
           echo "🌐 App should be available at: http://${{ secrets.EC2_HOST }}"
