@@ -29,6 +29,7 @@ This project includes automated CI/CD deployment to EC2 using GitHub Actions.
 - Every push to `main` branch automatically deploys to EC2 (3.111.36.145)
 - Dashboard available at: http://3.111.36.145:8501
 - ✅ CI/CD Pipeline: Automated deployment with GitHub Actions
+- 🚀 **Last Deployment Test:** $(date) - Systemd service running successfully!
 
 **Before pushing, ensure git email is set:**
 ```bash
