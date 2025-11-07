@@ -5,11 +5,12 @@ echo "🔍 Performing health check..."
 
 # Check if Streamlit process is running
 if pgrep -f "streamlit run" > /dev/null; then
+    PID=$(pgrep -f "streamlit run" | head -1)
     echo "✅ Streamlit process is running"
-    echo "   PID: $(pgrep -f 'streamlit run')"
+    echo "   PID: $PID"
     
     # Check if port 8501 is accessible
-    if netstat -tuln | grep ':8501' > /dev/null; then
+    if netstat -tuln 2>/dev/null | grep ':8501' > /dev/null || ss -tuln 2>/dev/null | grep ':8501' > /dev/null; then
         echo "✅ Port 8501 is listening"
         
         # Try to access the app

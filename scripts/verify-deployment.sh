@@ -8,8 +8,8 @@ cd /home/ec2-user/Optimization
 
 echo ""
 echo "1. Checking if Streamlit process is running:"
-if pgrep -f "streamlit run src/dashboard.py" > /dev/null; then
-    PID=$(pgrep -f "streamlit run src/dashboard.py" | head -1)
+if pgrep -f "streamlit run" > /dev/null; then
+    PID=$(pgrep -f "streamlit run" | head -1)
     echo "   ✅ Streamlit is running (PID: $PID)"
     ps aux | grep "streamlit run" | grep -v grep
 else

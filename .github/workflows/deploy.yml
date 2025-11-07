@@ -70,9 +70,9 @@ jobs:
           sleep 5
           
           # Check if process is still running (use pgrep since setsid creates new session)
-          if pgrep -f "streamlit run src/dashboard.py" > /dev/null; then
+          if pgrep -f "streamlit run" > /dev/null; then
             echo "✅ Streamlit process is running"
-            ACTUAL_PID=$(pgrep -f "streamlit run src/dashboard.py" | head -1)
+            ACTUAL_PID=$(pgrep -f "streamlit run" | head -1)
             echo "Actual PID: $ACTUAL_PID"
           else
             echo "❌ Streamlit process exited immediately!"
@@ -95,7 +95,7 @@ jobs:
               break
             fi
             # Check if process is still running (use pgrep for setsid processes)
-            if ! pgrep -f "streamlit run src/dashboard.py" > /dev/null; then
+            if ! pgrep -f "streamlit run" > /dev/null; then
               echo "❌ Streamlit process died during startup (attempt $i/30)"
               echo "📝 Last 50 lines of log:"
               tail -50 dashboard.log
