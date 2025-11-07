@@ -62,6 +62,8 @@ jobs:
           echo "📅 Deployment time: $(date)"
           echo "🔗 Commit: ${{ github.sha }}"
           echo "👤 Committed by: ${{ github.actor }}"
+          echo ""
+          echo "=== Deployment Script Started ==="
           
           # Navigate to project directory
           # Detect user from EC2_USER secret or default to ec2-user
@@ -81,27 +83,37 @@ jobs:
             cd "$PROJECT_DIR"
           fi
           
+          echo ""
+          echo "=== Step 1: Updating Code ==="
           echo "📥 Pulling latest code from main branch..."
           git fetch origin || echo "⚠️  Git fetch failed, continuing..."
           git reset --hard origin/main || echo "⚠️  Git reset failed, continuing..."
           git clean -fd || echo "⚠️  Git clean failed, continuing..."
           echo "✅ Code updated successfully"
           
+          echo ""
+          echo "=== Step 2: Installing Dependencies ==="
           echo "📦 Installing/upgrading Python dependencies..."
           python3 -m pip install --upgrade pip setuptools wheel || echo "⚠️  Pip upgrade failed"
           pip3 install -r requirements.txt --upgrade --no-cache-dir || echo "⚠️  Requirements install failed"
           echo "✅ Dependencies installed"
           
+          echo ""
+          echo "=== Step 3: Clearing Cache ==="
           echo "🧹 Clearing Streamlit cache..."
           python3 -m streamlit cache clear 2>/dev/null || true
           rm -rf .streamlit/cache 2>/dev/null || true
           
+          echo ""
+          echo "=== Step 4: Running Diagnostics ==="
           echo "🔍 Running diagnostic test..."
           if [ -f "scripts/test_streamlit.sh" ]; then
             chmod +x scripts/test_streamlit.sh
             bash scripts/test_streamlit.sh || true
           fi
           
+          echo ""
+          echo "=== Step 5: Restarting Application ==="
           echo "🔄 Restarting application..."
           
           # Kill existing Streamlit processes (don't fail if none running)
