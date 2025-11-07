@@ -55,27 +55,13 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.EC2_SSH_PORT || 22 }}
         script: |
-          # Don't exit on error - handle errors manually
           set +e
-          
-          # Function to ensure script continues
-          continue_script() {
-            echo "Script continuing..."
-            return 0
-          }
           
           echo "🚀 Starting automated deployment..."
           echo "📅 Deployment time: $(date)"
           echo "🔗 Commit: ${{ github.sha }}"
           echo "👤 Committed by: ${{ github.actor }}"
-          echo ""
-          echo "=== Deployment Script Started ==="
           
-          # Trap to ensure we see what's happening
-          trap 'echo "Script interrupted at line $LINENO"' ERR
-          
-          # Navigate to project directory
-          # Detect user from EC2_USER secret or default to ec2-user
           EC2_USERNAME="${{ secrets.EC2_USER }}"
           if [ "$EC2_USERNAME" = "ubuntu" ]; then
             PROJECT_DIR="/home/ubuntu/Optimization"
@@ -83,8 +69,10 @@ jobs:
             PROJECT_DIR="/home/ec2-user/Optimization"
           fi
           
+          echo "Project directory: $PROJECT_DIR"
+          
           if [ ! -d "$PROJECT_DIR" ]; then
-            echo "⚠️  Project directory not found. Creating it..."
+            echo "Creating project directory..."
             mkdir -p "$PROJECT_DIR"
             cd "$PROJECT_DIR"
             git clone https://github.com/infofitsoftwaresolution/Optimization.git .
@@ -92,130 +80,60 @@ jobs:
             cd "$PROJECT_DIR"
           fi
           
-          echo ""
-          echo "=== Step 1: Updating Code ==="
-          echo "📥 Pulling latest code from main branch..."
-          git fetch origin 2>&1 || echo "⚠️  Git fetch failed, continuing..."
-          continue_script
-          git reset --hard origin/main 2>&1 || echo "⚠️  Git reset failed, continuing..."
-          continue_script
-          git clean -fd 2>&1 || echo "⚠️  Git clean failed, continuing..."
-          continue_script
-          echo "✅ Code updated successfully"
           echo "Current directory: $(pwd)"
-          continue_script
           
-          echo ""
-          echo "=== Step 2: Installing Dependencies ==="
-          echo "📦 Installing/upgrading Python dependencies..."
-          python3 -m pip install --upgrade pip setuptools wheel && echo "Pip upgrade successful" || echo "⚠️  Pip upgrade failed"
-          pip3 install -r requirements.txt --upgrade --no-cache-dir && echo "Requirements install successful" || echo "⚠️  Requirements install failed"
-          echo "✅ Dependencies installed"
+          echo "Pulling latest code..."
+          git fetch origin
+          git reset --hard origin/main
+          git clean -fd
           
-          echo ""
-          echo "=== Step 3: Clearing Cache ==="
-          echo "🧹 Clearing Streamlit cache..."
+          echo "Installing dependencies..."
+          python3 -m pip install --upgrade pip setuptools wheel
+          pip3 install -r requirements.txt --upgrade --no-cache-dir
+          
+          echo "Clearing cache..."
           python3 -m streamlit cache clear 2>/dev/null || true
           rm -rf .streamlit/cache 2>/dev/null || true
           
-          echo ""
-          echo "=== Step 4: Restarting Application ==="
-          echo "🔄 Restarting application..."
-          
-          # Kill existing Streamlit processes (don't fail if none running)
-          echo "Stopping existing Streamlit processes..."
+          echo "Stopping existing Streamlit..."
           pkill -f "streamlit run src/dashboard.py" 2>/dev/null || true
-          sleep 3
+          sleep 5
           
-          # Force kill any process on port 8501 (using netstat which is more common)
           if command -v netstat > /dev/null 2>&1; then
             PORT_PID=$(netstat -tlnp 2>/dev/null | grep :8501 | awk '{print $7}' | cut -d'/' -f1 | head -1)
             if [ ! -z "$PORT_PID" ]; then
-              echo "⚠️  Port 8501 still in use by PID $PORT_PID, force killing..."
+              echo "Killing process on port 8501: $PORT_PID"
               kill -9 $PORT_PID 2>/dev/null || true
               sleep 2
             fi
           fi
           
-          # Double check - kill by process name again
           pkill -9 -f "streamlit run src/dashboard.py" 2>/dev/null || true
           sleep 2
           
-          # Now enable strict error checking
-          set -e
-          
-          # Ensure PATH includes user's local bin
+          echo "Starting Streamlit..."
           export PATH="$HOME/.local/bin:$PATH"
-          echo "PATH set to: $PATH"
-          
-          # Start Streamlit directly (proven to work)
-          echo "Starting Streamlit in background..."
           cd "$PROJECT_DIR"
           nohup bash -c "export PATH=\"\$HOME/.local/bin:\$PATH\" && cd $PROJECT_DIR && python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false" > dashboard.log 2>&1 &
           STREAMLIT_PID=$!
-          echo "Started Streamlit with PID: $STREAMLIT_PID"
-          sleep 3
-          # Verify the process is still running
-          if ! ps -p $STREAMLIT_PID > /dev/null 2>&1; then
-            echo "⚠️  Process $STREAMLIT_PID exited immediately, checking logs..."
+          echo "Started with PID: $STREAMLIT_PID"
+          
+          sleep 10
+          
+          if ps -p $STREAMLIT_PID > /dev/null 2>&1 || pgrep -f "streamlit run src/dashboard.py" > /dev/null; then
+            echo "✅ Streamlit is running!"
             if [ -f dashboard.log ]; then
+              echo "Last 10 lines of log:"
+              tail -10 dashboard.log
+            fi
+          else
+            echo "❌ Streamlit failed to start"
+            if [ -f dashboard.log ]; then
+              echo "Error log:"
               cat dashboard.log
-            fi
-          else
-            echo "✅ Streamlit process $STREAMLIT_PID is running"
-          fi
-          
-          # Wait longer for Streamlit to start
-          echo "Waiting 15 seconds for Streamlit to start..."
-          sleep 15
-          
-          # Check if log file was created
-          if [ ! -f "dashboard.log" ]; then
-            echo "⚠️  Warning: dashboard.log not created yet"
-            echo "This means Streamlit failed to start immediately"
-          else
-            echo "✅ Log file created, showing last 30 lines:"
-            tail -30 dashboard.log || true
-            echo ""
-            echo "Checking for errors in log:"
-            grep -i "error\|exception\|traceback\|failed\|cannot" dashboard.log | tail -20 || echo "No obvious errors found"
-          fi
-          
-          # Check if process is still running
-          if ps -p $STREAMLIT_PID > /dev/null 2>&1; then
-            echo "✅ Streamlit process (PID $STREAMLIT_PID) is running!"
-          elif pgrep -f "streamlit run src/dashboard.py" > /dev/null; then
-            echo "✅ Streamlit application is running (found via pgrep)!"
-          else
-            echo "❌ Failed to start Streamlit application"
-            echo "📋 Process check:"
-            ps aux | grep streamlit | grep -v grep || echo "No streamlit process found"
-            echo ""
-            echo "📋 Last 50 lines of log:"
-            if [ -f dashboard.log ]; then
-              tail -50 dashboard.log
-            else
-              echo "Log file not created - Streamlit failed to start immediately"
-            fi
-            echo ""
-            echo "📋 Checking for Python errors:"
-            if [ -f dashboard.log ]; then
-              grep -i "error\|exception\|traceback\|failed" dashboard.log | tail -20 || echo "No obvious errors in log"
             fi
             exit 1
           fi
           
-          echo "📊 Application status:"
-          ps aux | grep streamlit | grep -v grep || echo "Process check complete"
-          
-          echo "🌐 Checking if application is responding..."
-          sleep 2
-          curl -f http://localhost:8501/_stcore/health > /dev/null 2>&1 && \
-            echo "✅ Application is healthy and responding!" || \
-            echo "⚠️  Application may still be starting up..."
-          
-          echo ""
-          echo "✅ Deployment completed successfully!"
-          echo "📊 Dashboard available at: http://${{ secrets.EC2_HOST }}:8501"
-          echo "📅 Deployment completed at: $(date)"
-
+          echo "✅ Deployment completed!"
+          echo "Dashboard: http://${{ secrets.EC2_HOST }}:8501"
