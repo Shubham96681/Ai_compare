@@ -1,80 +1,53 @@
 #!/bin/bash
 
-# Deployment script for Streamlit app
 set -e
 
-echo "🚀 Starting deployment..."
+echo "🚀 Starting automated deployment..."
 
-# Navigate to app directory
 cd /home/ec2-user/Optimization
 
 # Pull latest changes
-echo "📥 Pulling latest changes..."
+echo "📥 Pulling latest code from GitHub..."
 git fetch origin
 git reset --hard origin/main
 
-# Install/update dependencies
-echo "📦 Installing dependencies..."
+# Install dependencies
+echo "📦 Installing/updating dependencies..."
 pip3 install -r requirements.txt
 
-# Restart nginx
-echo "🔄 Reloading nginx..."
-sudo systemctl reload nginx || true
+# Restart the Streamlit service
+echo "🔄 Restarting Streamlit service..."
+sudo systemctl restart streamlit-optimization.service
 
-# Stop existing Streamlit process gracefully
-echo "🛑 Stopping existing Streamlit app..."
-pkill -f "streamlit run" || true
-
-# Wait for process to fully terminate
-echo "⏳ Waiting for processes to terminate..."
+# Wait for service to start
+echo "⏳ Waiting for service to start..."
 sleep 10
 
-# Force kill any remaining processes
-pkill -9 -f "streamlit run" || true
-sleep 2
-
-# Clear any existing nohup output
-> dashboard.log
-
-# Start Streamlit app
-echo "🎯 Starting Streamlit app..."
-export PATH="$HOME/.local/bin:$PATH"
-nohup python3 -m streamlit run src/dashboard.py \
-  --server.port 8501 \
-  --server.address 0.0.0.0 \
-  --server.headless true \
-  --server.runOnSave false \
-  --browser.serverAddress "0.0.0.0" \
-  --browser.gatherUsageStats false \
-  > dashboard.log 2>&1 &
-
-# Get the PID
-STREAMLIT_PID=$!
-echo $STREAMLIT_PID > streamlit.pid
-
-# Wait for app to start
-echo "⏳ Waiting for app to start..."
-for i in {1..30}; do
-    if curl -f -s http://localhost:8501/ > /dev/null; then
-        echo "✅ Streamlit app started successfully!"
-        break
-    fi
-    if [ $i -eq 30 ]; then
-        echo "❌ Streamlit app failed to start within 30 seconds"
-        echo "📝 Check logs: tail -f dashboard.log"
-        exit 1
-    fi
-    sleep 2
-done
-
-# Check if app is running
-if pgrep -f "streamlit run" > /dev/null; then
-    echo "✅ Deployment completed successfully!"
-    echo "📊 App is running on: http://3.111.36.145"
-    echo "📝 Check logs with: tail -f /home/ec2-user/Optimization/dashboard.log"
-    echo "🔍 Process ID: $(cat streamlit.pid)"
+# Check service status
+if sudo systemctl is-active --quiet streamlit-optimization.service; then
+    echo "✅ Streamlit service is running"
 else
-    echo "❌ Deployment failed - Streamlit app not running"
-    echo "🔍 Check logs: tail -f /home/ec2-user/Optimization/dashboard.log"
+    echo "❌ Streamlit service failed to start"
+    sudo systemctl status streamlit-optimization.service
     exit 1
 fi
+
+# Health check
+echo "🔍 Performing health check..."
+for i in {1..10}; do
+    if curl -f -s --max-time 5 http://localhost:8501/ > /dev/null; then
+        echo "✅ Health check passed - App is responding"
+        echo "🎉 Deployment completed successfully!"
+        echo "🌐 App is live at: http://3.111.36.145"
+        exit 0
+    fi
+    echo "   Health check attempt $i/10 failed, retrying..."
+    sleep 5
+done
+
+echo "❌ Health check failed after 10 attempts"
+echo "📋 Service status:"
+sudo systemctl status streamlit-optimization.service
+echo "📝 Recent logs:"
+sudo journalctl -u streamlit-optimization.service -n 20 --no-pager
+exit 1
