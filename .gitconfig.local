@@ -1,0 +1,8 @@
+# Local Git Configuration
+# This file serves as a reminder for git configuration
+# Run: git config user.email "infofitsoftware@gmail.com"
+
+[user]
+    email = infofitsoftware@gmail.com
+    name = InfoFit Software
+

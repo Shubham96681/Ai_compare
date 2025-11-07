@@ -1,8 +1,9 @@
-name: Deploy to EC2
+name: CI/CD Pipeline - Deploy to EC2
 
 on:
   push:
     branches: [ main, master ]
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
   test:
@@ -23,11 +24,19 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run linting (if available)
+    - name: Run linting and syntax checks
       run: |
-        # Add any linting or basic checks here
-        python -m py_compile src/*.py || true
+        echo "🔍 Running syntax checks..."
+        python -m py_compile src/*.py config.py || true
+        python -m py_compile scripts/*.py || true
       continue-on-error: true
+
+    - name: Verify configuration files
+      run: |
+        echo "✅ Verifying configuration files exist..."
+        test -f requirements.txt && echo "✓ requirements.txt found"
+        test -f config.py && echo "✓ config.py found"
+        test -f src/dashboard.py && echo "✓ dashboard.py found"
 
   deploy:
     needs: test
@@ -44,30 +53,84 @@ jobs:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.EC2_SSH_PORT || 22 }}
         script: |
-          echo "🚀 Starting deployment..."
+          set -e  # Exit on error
           
-          cd /home/ubuntu/Optimization
+          echo "🚀 Starting automated deployment..."
+          echo "📅 Deployment time: $(date)"
+          echo "🔗 Commit: ${{ github.sha }}"
+          echo "👤 Committed by: ${{ github.actor }}"
           
-          echo "📥 Pulling latest code..."
+          # Navigate to project directory
+          # Detect user from EC2_USER secret or default to ubuntu
+          EC2_USERNAME="${{ secrets.EC2_USER }}"
+          if [ "$EC2_USERNAME" = "ec2-user" ]; then
+            PROJECT_DIR="/home/ec2-user/Optimization"
+          else
+            PROJECT_DIR="/home/ubuntu/Optimization"
+          fi
+          
+          if [ ! -d "$PROJECT_DIR" ]; then
+            echo "⚠️  Project directory not found. Creating it..."
+            mkdir -p "$PROJECT_DIR"
+            cd "$PROJECT_DIR"
+            git clone https://github.com/infofitsoftwaresolution/Optimization.git .
+          else
+            cd "$PROJECT_DIR"
+          fi
+          
+          echo "📥 Pulling latest code from main branch..."
           git fetch origin
           git reset --hard origin/main
+          git clean -fd  # Remove untracked files
           
-          echo "📦 Installing/upgrading dependencies..."
-          python3 -m pip install --upgrade pip
-          pip3 install -r requirements.txt --upgrade
+          echo "📦 Installing/upgrading Python dependencies..."
+          python3 -m pip install --upgrade pip setuptools wheel
+          pip3 install -r requirements.txt --upgrade --no-cache-dir
           
           echo "🧹 Clearing Streamlit cache..."
           python3 -m streamlit cache clear 2>/dev/null || true
+          rm -rf .streamlit/cache 2>/dev/null || true
           
           echo "🔄 Restarting application..."
-          # Try to restart with PM2, if not running start it
-          pm2 restart optimization-app || pm2 start python3 --name "optimization-app" --interpreter python3 -- -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 || \
-          # Fallback: use nohup if PM2 fails
-          (pkill -f "streamlit run src/dashboard.py" 2>/dev/null; sleep 2; nohup python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 > dashboard.log 2>&1 &)
           
-          echo "✅ Deployment completed successfully!"
+          # Kill existing Streamlit processes
+          pkill -f "streamlit run src/dashboard.py" 2>/dev/null || true
+          sleep 2
+          
+          # Start Streamlit with nohup in background
+          nohup python3 -m streamlit run src/dashboard.py \
+            --server.port 8501 \
+            --server.address 0.0.0.0 \
+            --server.headless true \
+            --server.enableCORS false \
+            --server.enableXsrfProtection false \
+            > dashboard.log 2>&1 &
+          
+          # Wait a moment and check if process started
+          sleep 3
+          
+          if pgrep -f "streamlit run src/dashboard.py" > /dev/null; then
+            echo "✅ Streamlit application started successfully!"
+          else
+            echo "❌ Failed to start Streamlit application"
+            echo "📋 Last 20 lines of log:"
+            tail -20 dashboard.log || true
+            exit 1
+          fi
+          
           echo "📊 Application status:"
-          pm2 status || echo "PM2 not available, checking process status..."
-          ps aux | grep streamlit | grep -v grep || echo "Streamlit process check complete"
+          ps aux | grep streamlit | grep -v grep || echo "Process check complete"
+          
+          echo "🌐 Checking if application is responding..."
+          sleep 2
+          curl -f http://localhost:8501/_stcore/health > /dev/null 2>&1 && \
+            echo "✅ Application is healthy and responding!" || \
+            echo "⚠️  Application may still be starting up..."
+          
+          echo ""
+          echo "✅ Deployment completed successfully!"
+          echo "📊 Dashboard available at: http://${{ secrets.EC2_HOST }}:8501"
+          echo "📅 Deployment completed at: $(date)"
 

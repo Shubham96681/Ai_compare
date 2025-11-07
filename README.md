@@ -21,6 +21,26 @@ This README provides a quick overview, but the manual guide has comprehensive in
 
 ---
 
+## 🚀 **CI/CD Deployment**
+
+This project includes automated CI/CD deployment to EC2 using GitHub Actions.
+
+**Quick Start:**
+- Every push to `main` branch automatically deploys to EC2 (3.110.44.41)
+- Dashboard available at: http://3.110.44.41:8501
+
+**Before pushing, ensure git email is set:**
+```bash
+git config user.email "infofitsoftware@gmail.com"
+git config user.name "InfoFit Software"
+```
+
+**For detailed CI/CD setup instructions:**
+- 📖 [CI/CD Quick Start Guide](CI_CD_QUICK_START.md) - Quick reference
+- 📖 [Full Deployment Guide](DEPLOYMENT.md) - Complete setup instructions
+
+---
+
 **⚠️ This project is configured to use only two models:**
 - Claude 3.7 Sonnet (`us.anthropic.claude-3-7-sonnet-20250219-v1:0`)
 - Llama 3.2 11B Instruct (`us.meta.llama3-2-11b-instruct-v1:0`)
