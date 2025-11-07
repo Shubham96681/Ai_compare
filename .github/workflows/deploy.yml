@@ -105,14 +105,21 @@ jobs:
           # Kill existing Streamlit processes (don't fail if none running)
           echo "Stopping existing Streamlit processes..."
           pkill -f "streamlit run src/dashboard.py" 2>/dev/null || true
-          sleep 5
+          sleep 3
           
-          # Verify port is free
-          if lsof -ti:8501 > /dev/null 2>&1; then
-            echo "⚠️  Port 8501 still in use, force killing..."
-            kill -9 $(lsof -ti:8501) 2>/dev/null || true
-            sleep 2
+          # Force kill any process on port 8501 (using netstat which is more common)
+          if command -v netstat > /dev/null 2>&1; then
+            PORT_PID=$(netstat -tlnp 2>/dev/null | grep :8501 | awk '{print $7}' | cut -d'/' -f1 | head -1)
+            if [ ! -z "$PORT_PID" ]; then
+              echo "⚠️  Port 8501 still in use by PID $PORT_PID, force killing..."
+              kill -9 $PORT_PID 2>/dev/null || true
+              sleep 2
+            fi
           fi
+          
+          # Double check - kill by process name again
+          pkill -9 -f "streamlit run src/dashboard.py" 2>/dev/null || true
+          sleep 2
           
           # Now enable strict error checking
           set -e
