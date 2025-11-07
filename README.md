@@ -560,3 +560,6 @@ The manual guide covers:
 ---
 
 **Happy Evaluating! 🎉**
+ 
+ < ! - -   T e s t   d e p l o y m e n t   - - >  
+ 
