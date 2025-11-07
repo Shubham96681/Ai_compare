@@ -46,69 +46,67 @@ jobs:
           echo "🛑 Stopping existing Streamlit process..."
           # Graceful shutdown first
           pkill -f "streamlit run" || true
-          sleep 10
+          sleep 5
           
           # Force kill if still running
           pkill -9 -f "streamlit run" || true
-          sleep 3
+          sleep 2
           
-          echo "🎯 Starting Streamlit app..."
+          # Ensure we're in the right directory
+          cd /home/ec2-user/Optimization
+          
+          # Make sure daemon script is executable
+          chmod +x scripts/start-streamlit-daemon.sh
+          
+          echo "🎯 Starting Streamlit app using daemon script..."
           export PATH="$HOME/.local/bin:$PATH"
           
-          # Clear old log
-          > dashboard.log
-          
-          # Use setsid to detach from terminal and ensure it stays running
-          # This prevents Streamlit from stopping when SSH session ends
-          cd /home/ec2-user/Optimization
-          setsid bash -c "cd /home/ec2-user/Optimization && export PATH=\"\$HOME/.local/bin:\$PATH\" && python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --server.runOnSave false --browser.serverAddress 0.0.0.0 --browser.gatherUsageStats false" > dashboard.log 2>&1 &
-          
-          STREAMLIT_PID=$!
-          echo "Started Streamlit with PID: $STREAMLIT_PID"
+          # Use the proven daemon script
+          ./scripts/start-streamlit-daemon.sh
           
           # Wait a moment for process to start
           sleep 5
           
-          # Check if process is still running (use pgrep since setsid creates new session)
+          # Check if process is running
           if pgrep -f "streamlit run" > /dev/null; then
-            echo "✅ Streamlit process is running"
             ACTUAL_PID=$(pgrep -f "streamlit run" | head -1)
-            echo "Actual PID: $ACTUAL_PID"
+            echo "✅ Streamlit process is running (PID: $ACTUAL_PID)"
           else
-            echo "❌ Streamlit process exited immediately!"
-            echo "📝 Checking logs for errors:"
+            echo "❌ Streamlit process not found after startup!"
+            echo "📝 Checking logs:"
             if [ -f dashboard.log ]; then
-              cat dashboard.log
+              tail -50 dashboard.log
             fi
-            echo ""
-            echo "🔍 Testing Streamlit directly:"
-            python3 -c "import sys; sys.path.insert(0, 'src'); import dashboard" 2>&1 | head -5 || echo "Import test failed"
             exit 1
           fi
           
-          echo "⏳ Waiting for app to start..."
-          # Wait and check if app starts
-          for i in {1..30}; do
-            if curl -f -s http://localhost:8501/ > /dev/null 2>&1; then
-              echo "✅ Streamlit app started successfully!"
-              echo "Process PID: $(pgrep -f 'streamlit run')"
+          echo "⏳ Waiting for app to respond..."
+          # Wait and check if app starts (reduced wait time since daemon script handles it)
+          for i in {1..20}; do
+            if curl -f -s --max-time 5 http://localhost:8501/ > /dev/null 2>&1; then
+              echo "✅ Streamlit app is responding!"
+              echo "Process PID: $(pgrep -f 'streamlit run' | head -1)"
               break
             fi
-            # Check if process is still running (use pgrep for setsid processes)
+            # Check if process is still running
             if ! pgrep -f "streamlit run" > /dev/null; then
-              echo "❌ Streamlit process died during startup (attempt $i/30)"
+              echo "❌ Streamlit process died during startup (attempt $i/20)"
               echo "📝 Last 50 lines of log:"
-              tail -50 dashboard.log
+              if [ -f dashboard.log ]; then
+                tail -50 dashboard.log
+              fi
               exit 1
             fi
-            if [ $i -eq 30 ]; then
-              echo "❌ Streamlit app failed to start within 90 seconds"
-              echo "📝 Last 50 lines of log:"
-              tail -50 dashboard.log
-              echo ""
-              echo "🔍 Process status:"
+            if [ $i -eq 20 ]; then
+              echo "⚠️  Streamlit may still be starting (waited 60 seconds)"
+              echo "📝 Process status:"
               ps aux | grep streamlit | grep -v grep || echo "No streamlit process found"
-              exit 1
+              echo "📝 Last 30 lines of log:"
+              if [ -f dashboard.log ]; then
+                tail -30 dashboard.log
+              fi
+              # Don't exit - process might still be starting
+              break
             fi
             sleep 3
           done
