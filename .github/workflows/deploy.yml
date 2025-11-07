@@ -55,7 +55,8 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.EC2_SSH_PORT || 22 }}
         script: |
-          set -e  # Exit on error
+          # Don't exit on error for pkill commands
+          set +e  # Don't exit on error initially
           
           echo "🚀 Starting automated deployment..."
           echo "📅 Deployment time: $(date)"
@@ -101,10 +102,20 @@ jobs:
           
           echo "🔄 Restarting application..."
           
-          # Kill existing Streamlit processes
+          # Kill existing Streamlit processes (don't fail if none running)
           echo "Stopping existing Streamlit processes..."
           pkill -f "streamlit run src/dashboard.py" 2>/dev/null || true
-          sleep 3
+          sleep 5
+          
+          # Verify port is free
+          if lsof -ti:8501 > /dev/null 2>&1; then
+            echo "⚠️  Port 8501 still in use, force killing..."
+            kill -9 $(lsof -ti:8501) 2>/dev/null || true
+            sleep 2
+          fi
+          
+          # Now enable strict error checking
+          set -e
           
           # Ensure PATH includes user's local bin
           export PATH="$HOME/.local/bin:$PATH"
