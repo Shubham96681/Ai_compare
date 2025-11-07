@@ -26,8 +26,9 @@ This README provides a quick overview, but the manual guide has comprehensive in
 This project includes automated CI/CD deployment to EC2 using GitHub Actions.
 
 **Quick Start:**
-- Every push to `main` branch automatically deploys to EC2 (3.110.44.41)
-- Dashboard available at: http://3.110.44.41:8501
+- Every push to `main` branch automatically deploys to EC2 (3.111.36.145)
+- Dashboard available at: http://3.111.36.145:8501
+- ✅ CI/CD Pipeline: Automated deployment with GitHub Actions
 
 **Before pushing, ensure git email is set:**
 ```bash
@@ -560,6 +561,8 @@ The manual guide covers:
 ---
 
 **Happy Evaluating! 🎉**
- 
- < ! - -   T e s t   d e p l o y m e n t   - - >  
+
+ 
+ < ! - -   T e s t   d e p l o y m e n t   - - > 
+ 
  
