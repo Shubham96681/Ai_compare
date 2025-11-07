@@ -82,14 +82,14 @@ jobs:
           fi
           
           echo "📥 Pulling latest code from main branch..."
-          git fetch origin || { echo "⚠️  Git fetch failed, continuing..."; }
-          git reset --hard origin/main || { echo "⚠️  Git reset failed, continuing..."; }
-          git clean -fd || { echo "⚠️  Git clean failed, continuing..."; }
+          git fetch origin || echo "⚠️  Git fetch failed, continuing..."
+          git reset --hard origin/main || echo "⚠️  Git reset failed, continuing..."
+          git clean -fd || echo "⚠️  Git clean failed, continuing..."
           echo "✅ Code updated successfully"
           
           echo "📦 Installing/upgrading Python dependencies..."
-          python3 -m pip install --upgrade pip setuptools wheel || { echo "⚠️  Pip upgrade failed"; }
-          pip3 install -r requirements.txt --upgrade --no-cache-dir || { echo "⚠️  Requirements install failed"; }
+          python3 -m pip install --upgrade pip setuptools wheel || echo "⚠️  Pip upgrade failed"
+          pip3 install -r requirements.txt --upgrade --no-cache-dir || echo "⚠️  Requirements install failed"
           echo "✅ Dependencies installed"
           
           echo "🧹 Clearing Streamlit cache..."
