@@ -110,31 +110,21 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           echo "PATH set to: $PATH"
           
-          # Make startup script executable if it exists
-          if [ -f "scripts/start_streamlit.sh" ]; then
-            chmod +x scripts/start_streamlit.sh
-            echo "✅ Using startup script: scripts/start_streamlit.sh"
-            echo "Starting Streamlit in background..."
-            cd "$PROJECT_DIR"
-            nohup bash scripts/start_streamlit.sh "$PROJECT_DIR" > dashboard.log 2>&1 &
-            STREAMLIT_PID=$!
-            echo "Started with PID: $STREAMLIT_PID"
-            sleep 2
-            # Verify the process is still running
-            if ! ps -p $STREAMLIT_PID > /dev/null 2>&1; then
-              echo "⚠️  Process $STREAMLIT_PID exited immediately, checking logs..."
-              if [ -f dashboard.log ]; then
-                cat dashboard.log
-              fi
+          # Start Streamlit directly (proven to work)
+          echo "Starting Streamlit in background..."
+          cd "$PROJECT_DIR"
+          nohup bash -c "export PATH=\"\$HOME/.local/bin:\$PATH\" && cd $PROJECT_DIR && python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false" > dashboard.log 2>&1 &
+          STREAMLIT_PID=$!
+          echo "Started Streamlit with PID: $STREAMLIT_PID"
+          sleep 3
+          # Verify the process is still running
+          if ! ps -p $STREAMLIT_PID > /dev/null 2>&1; then
+            echo "⚠️  Process $STREAMLIT_PID exited immediately, checking logs..."
+            if [ -f dashboard.log ]; then
+              cat dashboard.log
             fi
           else
-            # Fallback: Use python3 -m streamlit directly
-            echo "⚠️  Startup script not found, using direct command"
-            echo "Starting Streamlit with: python3 -m streamlit"
-            cd "$PROJECT_DIR"
-            nohup bash -c "export PATH=\"\$HOME/.local/bin:\$PATH\" && cd $PROJECT_DIR && python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false" > dashboard.log 2>&1 &
-            STREAMLIT_PID=$!
-            echo "Started with PID: $STREAMLIT_PID"
+            echo "✅ Streamlit process $STREAMLIT_PID is running"
           fi
           
           # Wait longer for Streamlit to start
