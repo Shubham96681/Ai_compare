@@ -1,21 +1,30 @@
 #!/bin/bash
 
 # Health check for Streamlit app
-HEALTH_CHECK_URL="http://localhost:8501/_stcore/health"
-MAX_RETRIES=30
-RETRY_INTERVAL=10
+echo "🔍 Performing health check..."
 
-echo "Performing health check..."
-
-for i in $(seq 1 $MAX_RETRIES); do
-    if curl -f -s "$HEALTH_CHECK_URL" > /dev/null; then
-        echo "Health check passed! Application is running."
-        exit 0
+# Check if Streamlit process is running
+if pgrep -f "streamlit run" > /dev/null; then
+    echo "✅ Streamlit process is running"
+    
+    # Check if port 8501 is accessible
+    if netstat -tuln | grep ':8501' > /dev/null; then
+        echo "✅ Port 8501 is listening"
+        
+        # Try to curl the health endpoint (if available)
+        if curl -f -s http://localhost:8501/ > /dev/null; then
+            echo "✅ Streamlit app is responding"
+            echo "🎉 Health check PASSED"
+            exit 0
+        else
+            echo "⚠️  Streamlit app not responding on port 8501"
+        fi
+    else
+        echo "❌ Port 8501 is not listening"
     fi
-    echo "Health check attempt $i/$MAX_RETRIES failed. Retrying in $RETRY_INTERVAL seconds..."
-    sleep $RETRY_INTERVAL
-done
+else
+    echo "❌ Streamlit process not found"
+fi
 
-echo "Health check failed after $MAX_RETRIES attempts."
+echo "💥 Health check FAILED"
 exit 1
-
