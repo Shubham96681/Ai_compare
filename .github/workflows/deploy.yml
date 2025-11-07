@@ -99,8 +99,12 @@ jobs:
           pkill -f "streamlit run src/dashboard.py" 2>/dev/null || true
           sleep 2
           
+          # Find streamlit executable
+          STREAMLIT_CMD=$(which streamlit || echo "python3 -m streamlit")
+          echo "Using Streamlit command: $STREAMLIT_CMD"
+          
           # Start Streamlit with nohup in background
-          nohup python3 -m streamlit run src/dashboard.py \
+          nohup $STREAMLIT_CMD run src/dashboard.py \
             --server.port 8501 \
             --server.address 0.0.0.0 \
             --server.headless true \
@@ -108,15 +112,23 @@ jobs:
             --server.enableXsrfProtection false \
             > dashboard.log 2>&1 &
           
-          # Wait a moment and check if process started
-          sleep 3
+          # Save the background process PID
+          STREAMLIT_PID=$!
+          echo "Started Streamlit with PID: $STREAMLIT_PID"
           
-          if pgrep -f "streamlit run src/dashboard.py" > /dev/null; then
+          # Wait a moment and check if process started
+          sleep 5
+          
+          # Check if process is still running
+          if ps -p $STREAMLIT_PID > /dev/null 2>&1 || pgrep -f "streamlit run src/dashboard.py" > /dev/null; then
             echo "✅ Streamlit application started successfully!"
           else
             echo "❌ Failed to start Streamlit application"
-            echo "📋 Last 20 lines of log:"
-            tail -20 dashboard.log || true
+            echo "📋 Last 30 lines of log:"
+            tail -30 dashboard.log || true
+            echo ""
+            echo "📋 Checking for Python errors:"
+            grep -i "error\|exception\|traceback" dashboard.log | tail -10 || echo "No obvious errors in log"
             exit 1
           fi
           
