@@ -55,8 +55,14 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.EC2_SSH_PORT || 22 }}
         script: |
-          # Don't exit on error for pkill commands
-          set +e  # Don't exit on error initially
+          # Don't exit on error - handle errors manually
+          set +e
+          
+          # Function to ensure script continues
+          continue_script() {
+            echo "Script continuing..."
+            return 0
+          }
           
           echo "🚀 Starting automated deployment..."
           echo "📅 Deployment time: $(date)"
@@ -64,6 +70,9 @@ jobs:
           echo "👤 Committed by: ${{ github.actor }}"
           echo ""
           echo "=== Deployment Script Started ==="
+          
+          # Trap to ensure we see what's happening
+          trap 'echo "Script interrupted at line $LINENO"' ERR
           
           # Navigate to project directory
           # Detect user from EC2_USER secret or default to ec2-user
@@ -86,12 +95,15 @@ jobs:
           echo ""
           echo "=== Step 1: Updating Code ==="
           echo "📥 Pulling latest code from main branch..."
-          (git fetch origin && echo "Git fetch successful") || echo "⚠️  Git fetch failed, continuing..."
-          (git reset --hard origin/main && echo "Git reset successful") || echo "⚠️  Git reset failed, continuing..."
-          (git clean -fd && echo "Git clean successful") || echo "⚠️  Git clean failed, continuing..."
+          git fetch origin 2>&1 || echo "⚠️  Git fetch failed, continuing..."
+          continue_script
+          git reset --hard origin/main 2>&1 || echo "⚠️  Git reset failed, continuing..."
+          continue_script
+          git clean -fd 2>&1 || echo "⚠️  Git clean failed, continuing..."
+          continue_script
           echo "✅ Code updated successfully"
           echo "Current directory: $(pwd)"
-          echo "Files in directory: $(ls -la | head -5)"
+          continue_script
           
           echo ""
           echo "=== Step 2: Installing Dependencies ==="
