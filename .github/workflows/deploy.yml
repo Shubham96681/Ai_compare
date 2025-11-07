@@ -105,15 +105,7 @@ jobs:
           rm -rf .streamlit/cache 2>/dev/null || true
           
           echo ""
-          echo "=== Step 4: Running Diagnostics ==="
-          echo "🔍 Running diagnostic test..."
-          if [ -f "scripts/test_streamlit.sh" ]; then
-            chmod +x scripts/test_streamlit.sh
-            bash scripts/test_streamlit.sh || true
-          fi
-          
-          echo ""
-          echo "=== Step 5: Restarting Application ==="
+          echo "=== Step 4: Restarting Application ==="
           echo "🔄 Restarting application..."
           
           # Kill existing Streamlit processes (don't fail if none running)
