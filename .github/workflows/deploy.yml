@@ -93,38 +93,47 @@ jobs:
           python3 -m streamlit cache clear 2>/dev/null || true
           rm -rf .streamlit/cache 2>/dev/null || true
           
-          echo "🔍 Testing if dashboard can be imported..."
-          python3 -c "import sys; sys.path.insert(0, '.'); from src import dashboard; print('✅ Dashboard imports successfully')" || {
-            echo "⚠️  Dashboard import test failed, but continuing..."
-          }
-          
           echo "🔄 Restarting application..."
           
           # Kill existing Streamlit processes
+          echo "Stopping existing Streamlit processes..."
           pkill -f "streamlit run src/dashboard.py" 2>/dev/null || true
-          sleep 2
+          sleep 3
           
           # Ensure PATH includes user's local bin
           export PATH="$HOME/.local/bin:$PATH"
+          echo "PATH set to: $PATH"
           
           # Make startup script executable if it exists
           if [ -f "scripts/start_streamlit.sh" ]; then
             chmod +x scripts/start_streamlit.sh
-            echo "Using startup script: scripts/start_streamlit.sh"
+            echo "✅ Using startup script: scripts/start_streamlit.sh"
+            echo "Starting Streamlit in background..."
+            cd "$PROJECT_DIR"
             nohup bash scripts/start_streamlit.sh > dashboard.log 2>&1 &
+            STREAMLIT_PID=$!
+            echo "Started with PID: $STREAMLIT_PID"
           else
             # Fallback: Use python3 -m streamlit directly
+            echo "⚠️  Startup script not found, using direct command"
             echo "Starting Streamlit with: python3 -m streamlit"
+            cd "$PROJECT_DIR"
             nohup bash -c "export PATH=\"\$HOME/.local/bin:\$PATH\" && cd $PROJECT_DIR && python3 -m streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false" > dashboard.log 2>&1 &
+            STREAMLIT_PID=$!
+            echo "Started with PID: $STREAMLIT_PID"
           fi
           
-          # Save the background process PID
-          STREAMLIT_PID=$!
-          echo "Started Streamlit with PID: $STREAMLIT_PID"
-          
           # Wait longer for Streamlit to start
-          echo "Waiting for Streamlit to start..."
-          sleep 8
+          echo "Waiting 10 seconds for Streamlit to start..."
+          sleep 10
+          
+          # Check if log file was created
+          if [ ! -f "dashboard.log" ]; then
+            echo "⚠️  Warning: dashboard.log not created yet"
+          else
+            echo "✅ Log file created, showing last 10 lines:"
+            tail -10 dashboard.log || true
+          fi
           
           # Check if process is still running
           if ps -p $STREAMLIT_PID > /dev/null 2>&1; then
