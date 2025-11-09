@@ -26,6 +26,7 @@ from src.evaluator import BedrockEvaluator
 from src.metrics_logger import MetricsLogger
 from src.report_generator import ReportGenerator
 from src.utils.json_utils import is_valid_json
+from src.cloudwatch_parser import CloudWatchParser
 import tempfile
 import os
 
@@ -625,14 +626,45 @@ with st.sidebar:
     with st.expander("📁 Upload File (JSON or CSV)", expanded=False):
         uploaded_file = st.file_uploader(
             "Choose a file",
-            type=['json', 'csv'],
-            help="Upload a JSON or CSV file containing prompts. CSV should have a 'prompt' column. JSON can be an array of objects with 'prompt' field.",
+            type=None,  # Accept all files - we'll validate the content
+            accept_multiple_files=False,
+            help="Upload a JSON or CSV file containing prompts. CSV should have a 'prompt' column. JSON can be an array of objects with 'prompt' field. Supported extensions: .json, .csv, .txt",
             key="prompt_file_uploader_sidebar"
         )
         
         # Handle file upload
         if uploaded_file is not None:
-            file_extension = uploaded_file.name.split('.')[-1].lower()
+            # Get file extension with better detection
+            file_name = uploaded_file.name.lower()
+            file_extension = None
+            
+            # Check for valid extensions
+            if file_name.endswith('.csv'):
+                file_extension = 'csv'
+            elif file_name.endswith('.json') or file_name.endswith('.jsonl') or file_name.endswith('.ndjson'):
+                file_extension = 'json'
+            elif file_name.endswith('.txt'):
+                # Try to detect if it's JSON or CSV by content
+                file_extension = 'txt'
+            else:
+                # Try to auto-detect by reading first few bytes
+                try:
+                    peek = uploaded_file.read(100)
+                    uploaded_file.seek(0)  # Reset file pointer
+                    peek_str = peek.decode('utf-8', errors='ignore') if isinstance(peek, bytes) else str(peek)
+                    if peek_str.strip().startswith('[') or peek_str.strip().startswith('{'):
+                        file_extension = 'json'
+                        st.info("📄 Auto-detected file as JSON format")
+                    elif ',' in peek_str and '\n' in peek_str:
+                        file_extension = 'csv'
+                        st.info("📄 Auto-detected file as CSV format")
+                    else:
+                        file_extension = 'txt'
+                        st.info("📄 Treating file as text format")
+                except Exception as e:
+                    file_extension = uploaded_file.name.split('.')[-1].lower() if '.' in uploaded_file.name else 'txt'
+                    st.warning(f"⚠️ Could not auto-detect file type. Using extension: {file_extension}")
+            
             st.session_state.uploaded_file_type = file_extension
             
             try:
@@ -1119,6 +1151,332 @@ with st.sidebar:
             st.session_state.selected_uploaded_prompts = []
             st.session_state.uploaded_file_type = None
     
+    # ==========================================
+    # CLOUDWATCH LOG UPLOAD SECTION
+    # ==========================================
+    st.markdown("---")
+    with st.expander("☁️ Upload CloudWatch Logs", expanded=False):
+        st.markdown("""
+        <div style="margin-bottom: 1rem;">
+            <p style="color: #666; font-size: 0.9rem;">
+                Upload AWS CloudWatch logs to extract and analyze Bedrock model metrics.
+                Supports JSON lines (NDJSON) or JSON array format.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        cloudwatch_file = st.file_uploader(
+            "Upload CloudWatch Log File",
+            type=None,  # Accept all files - we'll validate the content
+            accept_multiple_files=False,
+            help="Upload CloudWatch logs in JSON lines (NDJSON) or JSON array format. Supported extensions: .json, .txt, .log, or any text file.",
+            key="cloudwatch_file_uploader"
+        )
+        
+        if cloudwatch_file is not None:
+            try:
+                # Read file content
+                # Validate file extension
+                file_name = cloudwatch_file.name.lower()
+                valid_extensions = ['.json', '.txt', '.log', '.jsonl', '.ndjson']
+                file_ext = None
+                for ext in valid_extensions:
+                    if file_name.endswith(ext):
+                        file_ext = ext
+                        break
+                
+                if file_ext is None:
+                    st.warning(f"⚠️ File extension not recognized. Expected: {', '.join(valid_extensions)}. Proceeding anyway...")
+                
+                # Read file content (handle large files)
+                try:
+                    # For large files, read in chunks if needed
+                    file_content = cloudwatch_file.read()
+                    if isinstance(file_content, bytes):
+                        try:
+                            file_content = file_content.decode('utf-8')
+                        except UnicodeDecodeError:
+                            # Try with error handling
+                            file_content = file_content.decode('utf-8', errors='ignore')
+                            st.warning("⚠️ Some characters could not be decoded. File processed with error handling.")
+                except Exception as e:
+                    st.error(f"❌ Error reading file: {str(e)}")
+                    st.stop()
+                
+                if not file_content or len(file_content.strip()) == 0:
+                    st.error("❌ File is empty or could not be read.")
+                    st.stop()
+                
+                # Load model registry for parsing
+                try:
+                    config_file = Path(config_path)
+                    if config_file.exists():
+                        cw_registry = ModelRegistry(config_path)
+                    else:
+                        cw_registry = None
+                        st.warning("⚠️ Model registry not found. Some features may be limited.")
+                except Exception as e:
+                    cw_registry = None
+                    st.warning(f"⚠️ Could not load model registry: {e}")
+                
+                # Parse CloudWatch logs
+                with st.spinner("📊 Parsing CloudWatch logs... This may take a moment for large files."):
+                    parser = CloudWatchParser(cw_registry)
+                    
+                    # Show file info
+                    file_size_mb = len(file_content.encode('utf-8')) / (1024 * 1024)
+                    total_lines = len([l for l in file_content.split('\n') if l.strip()])
+                    st.info(f"📄 **File:** {cloudwatch_file.name} | **Size:** {file_size_mb:.2f} MB | **Lines:** {total_lines:,}")
+                    
+                    # Parse the file
+                    metrics = parser.parse_log_file(file_content)
+                    
+                    # Show parsing progress
+                    if total_lines > 1000:
+                        st.info(f"✅ Processed {total_lines:,} log lines")
+                
+                if metrics:
+                    st.success(f"✅ Successfully parsed {len(metrics)} log entries")
+                    
+                    # Show summary
+                    metrics_df = pd.DataFrame(metrics)
+                    summary_col1, summary_col2, summary_col3 = st.columns(3)
+                    
+                    with summary_col1:
+                        st.metric("Total Entries", len(metrics))
+                    
+                    with summary_col2:
+                        success_count = len(metrics_df[metrics_df['status'] == 'success']) if 'status' in metrics_df.columns else 0
+                        st.metric("Successful", success_count)
+                    
+                    with summary_col3:
+                        unique_models = metrics_df['model_name'].nunique() if 'model_name' in metrics_df.columns else 0
+                        st.metric("Models Found", unique_models)
+                    
+                    # Extract unique prompts from parsed metrics
+                    cloudwatch_prompts = []
+                    cloudwatch_prompt_metadata = {}
+                    
+                    # Debug: Check what fields are available in metrics
+                    if metrics:
+                        sample_metric = metrics[0]
+                        with st.expander("🔍 Debug: Sample Metric Fields", expanded=False):
+                            st.json({k: str(v)[:200] if isinstance(v, str) and len(str(v)) > 200 else v for k, v in sample_metric.items()})
+                    
+                    for metric in metrics:
+                        # Try multiple field names for prompt (parser uses 'input_prompt')
+                        prompt = None
+                        for field in ['input_prompt', 'prompt', 'input', 'message', 'text']:
+                            if field in metric:
+                                prompt_value = metric.get(field, '')
+                                if prompt_value:
+                                    # Handle both string and None values
+                                    if isinstance(prompt_value, str):
+                                        prompt_value = prompt_value.strip()
+                                    else:
+                                        prompt_value = str(prompt_value).strip()
+                                    if prompt_value:
+                                        prompt = prompt_value
+                                        break
+                        
+                        # If still no prompt, try to extract from nested structures
+                        if not prompt:
+                            # Check if there's a nested prompt structure
+                            if 'request' in metric:
+                                request = metric['request']
+                                if isinstance(request, dict):
+                                    for field in ['prompt', 'input', 'messages', 'inputText']:
+                                        if field in request:
+                                            prompt_value = request[field]
+                                            if isinstance(prompt_value, str):
+                                                prompt = prompt_value.strip()
+                                            elif isinstance(prompt_value, list) and prompt_value:
+                                                # Extract from messages array
+                                                for msg in prompt_value:
+                                                    if isinstance(msg, dict):
+                                                        if 'content' in msg:
+                                                            content = msg['content']
+                                                            if isinstance(content, str):
+                                                                prompt = content.strip()
+                                                            elif isinstance(content, list):
+                                                                for item in content:
+                                                                    if isinstance(item, dict) and 'text' in item:
+                                                                        prompt = item['text'].strip()
+                                                                    elif isinstance(item, str):
+                                                                        prompt = item.strip()
+                                                                    if prompt:
+                                                                        break
+                                                        elif 'text' in msg:
+                                                            prompt = msg['text'].strip()
+                                                    if prompt:
+                                                        break
+                                            if prompt:
+                                                break
+                        
+                        if prompt and prompt not in cloudwatch_prompts:
+                            cloudwatch_prompts.append(prompt)
+                            # Store metadata for each prompt
+                            cloudwatch_prompt_metadata[prompt] = {
+                                'model_name': metric.get('model_name', 'Unknown'),
+                                'timestamp': metric.get('timestamp', ''),
+                                'status': metric.get('status', 'unknown'),
+                                'source': 'cloudwatch'
+                            }
+                    
+                    # Store in session state for later use
+                    st.session_state.cloudwatch_prompts = cloudwatch_prompts
+                    st.session_state.cloudwatch_prompt_metadata = cloudwatch_prompt_metadata
+                    
+                    # Show prompt selection section (always show, even if empty)
+                    st.markdown("---")
+                    st.markdown("### 📝 Select Prompts from CloudWatch Logs")
+                    
+                    if cloudwatch_prompts:
+                        st.info(f"**Found {len(cloudwatch_prompts)} unique prompts** in the CloudWatch logs. Select prompts to test with your models.")
+                        
+                        # Initialize selected CloudWatch prompts if not exists
+                        if 'selected_cloudwatch_prompts' not in st.session_state:
+                            st.session_state.selected_cloudwatch_prompts = []
+                        
+                        # Select all / Deselect all buttons
+                        cw_col1, cw_col2 = st.columns(2)
+                        with cw_col1:
+                            if st.button("✅ Select All CloudWatch Prompts", key="select_all_cw", use_container_width=True):
+                                st.session_state.selected_cloudwatch_prompts = cloudwatch_prompts.copy()
+                                st.rerun()
+                        with cw_col2:
+                            if st.button("❌ Deselect All", key="deselect_all_cw", use_container_width=True):
+                                st.session_state.selected_cloudwatch_prompts = []
+                                st.rerun()
+                        
+                        st.markdown("---")
+                        
+                        # Show checkboxes for each prompt
+                        selected_cw_prompts = []
+                        for idx, prompt in enumerate(cloudwatch_prompts):
+                            # Get metadata for this prompt
+                            meta = cloudwatch_prompt_metadata.get(prompt, {})
+                            model_name = meta.get('model_name', 'Unknown')
+                            
+                            # Create a readable preview
+                            prompt_text = str(prompt).strip()
+                            if len(prompt_text) > 150:
+                                prompt_preview = prompt_text[:150] + "..."
+                            else:
+                                prompt_preview = prompt_text
+                            
+                            # Clean up preview
+                            prompt_preview = ' '.join(prompt_preview.split())
+                            
+                            # Checkbox with model info
+                            is_selected = st.checkbox(
+                                f"**Prompt {idx + 1}** (from {model_name}): {prompt_preview}",
+                                value=prompt in st.session_state.selected_cloudwatch_prompts,
+                                key=f"cw_prompt_checkbox_{idx}",
+                                help=f"Full prompt: {prompt_text[:500] if len(prompt_text) > 500 else prompt_text}"
+                            )
+                            
+                            if is_selected:
+                                selected_cw_prompts.append(prompt)
+                        
+                        # Update session state
+                        st.session_state.selected_cloudwatch_prompts = selected_cw_prompts
+                        
+                        st.markdown("---")
+                        st.success(f"**✅ Selected {len(selected_cw_prompts)} prompt(s) from CloudWatch logs**")
+                        st.info("💡 These prompts will be available for evaluation. Go to the sidebar to run evaluations with selected prompts.")
+                        
+                        # Show preview of selected prompts
+                        if selected_cw_prompts:
+                            with st.expander(f"👁️ Preview Selected CloudWatch Prompts ({len(selected_cw_prompts)})", expanded=False):
+                                for idx, prompt in enumerate(selected_cw_prompts[:5], 1):
+                                    meta = cloudwatch_prompt_metadata.get(prompt, {})
+                                    st.markdown(f"**Prompt {idx}** (from {meta.get('model_name', 'Unknown')}):")
+                                    st.text_area(
+                                        "",
+                                        value=prompt[:1000] + ("..." if len(prompt) > 1000 else ""),
+                                        height=150,
+                                        key=f"preview_cw_prompt_{idx}",
+                                        disabled=True,
+                                        label_visibility="collapsed"
+                                    )
+                                if len(selected_cw_prompts) > 5:
+                                    st.caption(f"... and {len(selected_cw_prompts) - 5} more prompts")
+                    else:
+                        st.warning("⚠️ **No prompts found** in the parsed CloudWatch logs.")
+                        st.info("""
+                        **Possible reasons:**
+                        - The log entries don't contain extractable prompt text
+                        - Prompts might be in a format that couldn't be parsed
+                        - Check the "Debug: Sample Metric Fields" expander above to see what fields are available
+                        
+                        **Note:** The metrics were still saved successfully. You can use custom prompts or upload prompts from a file instead.
+                        """)
+                    
+                    # Show preview
+                    st.markdown("---")
+                    if st.checkbox("Show Metrics Preview", key="cw_preview_checkbox"):
+                        st.dataframe(metrics_df[['model_name', 'status', 'latency_ms', 'input_tokens', 'output_tokens', 'cost_usd_total']].head(10))
+                    
+                    # Save to metrics file
+                    if st.button("💾 Save to Metrics Database", key="save_cloudwatch_metrics", use_container_width=True):
+                        try:
+                            # Get output directory from session state or use default
+                            output_dir = st.session_state.get('output_dir', 'data/runs')
+                            metrics_logger = MetricsLogger(output_dir)
+                            
+                            # Save metrics
+                            metrics_logger.log_metrics(metrics)
+                            
+                            st.success(f"✅ Saved {len(metrics)} metrics to {metrics_logger.raw_csv_path}")
+                            
+                            # Trigger data reload
+                            if 'data_reload_key' in st.session_state:
+                                st.session_state.data_reload_key = datetime.now().isoformat()
+                            
+                            st.info("🔄 Refresh the page to see the new metrics in the dashboard")
+                            
+                        except Exception as e:
+                            st.error(f"❌ Error saving metrics: {str(e)}")
+                    
+                    # Option to download as CSV
+                    csv_data = metrics_df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Metrics as CSV",
+                        data=csv_data,
+                        file_name=f"cloudwatch_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        key="download_cw_metrics"
+                    )
+                    
+                else:
+                    st.warning("⚠️ No Bedrock metrics found in the uploaded file.")
+                    st.info("""
+                    **Troubleshooting:**
+                    - Ensure the file contains CloudWatch logs with Bedrock API calls
+                    - Check that log entries have `logStreamName` containing "bedrock" or `operation` field with "Converse"/"InvokeModel"
+                    - Verify the file format is JSON lines (one JSON object per line) or JSON array
+                    - Sample log entry should contain fields like: `modelId`, `operation`, `input`, `output`
+                    """)
+                    
+                    # Show sample of first line for debugging
+                    if file_content:
+                        lines = file_content.strip().split('\n')
+                        if lines:
+                            try:
+                                sample_entry = json.loads(lines[0])
+                                with st.expander("🔍 Sample Log Entry (First Line)"):
+                                    st.json(sample_entry)
+                                    st.caption("Check if this entry contains Bedrock-related fields (modelId, operation, input, output)")
+                            except:
+                                st.caption(f"First line preview: {lines[0][:200]}...")
+                    
+            except Exception as e:
+                st.error(f"❌ Error parsing CloudWatch logs: {str(e)}")
+                import traceback
+                with st.expander("Error Details"):
+                    st.code(traceback.format_exc())
+    
     # Settings Section in Sidebar
     with st.expander("⚙️ Settings", expanded=False):
         expect_json = st.checkbox(
@@ -1166,6 +1524,17 @@ with st.sidebar:
         st.warning(f"⚠️ Error loading models: {str(e)}")
         st.session_state.selected_models = []
     
+    # Show CloudWatch prompts status if available
+    if st.session_state.get('cloudwatch_prompts'):
+        cw_prompts_count = len(st.session_state.cloudwatch_prompts)
+        selected_cw_count = len(st.session_state.get('selected_cloudwatch_prompts', []))
+        with st.expander("☁️ CloudWatch Prompts Available", expanded=False):
+            st.info(f"**{cw_prompts_count} prompts** available from CloudWatch logs")
+            if selected_cw_count > 0:
+                st.success(f"✅ **{selected_cw_count} selected** for evaluation")
+            else:
+                st.caption("💡 Go to 'Upload CloudWatch Logs' section to select prompts")
+    
     # Input Summary in Sidebar
     prompts_to_use = []
     prompts_with_metadata = []  # Store prompts with their metadata
@@ -1192,9 +1561,25 @@ with st.sidebar:
                 "prompt_id": metadata.get("prompt_id")
             })
     
+    # Use selected prompts from CloudWatch logs (if any)
+    if st.session_state.get('selected_cloudwatch_prompts'):
+        cw_prompt_metadata = st.session_state.get('cloudwatch_prompt_metadata', {})
+        for prompt in st.session_state.selected_cloudwatch_prompts:
+            prompts_to_use.append(prompt)
+            # Get metadata for this prompt if available
+            metadata = cw_prompt_metadata.get(prompt, {})
+            prompts_with_metadata.append({
+                "prompt": prompt,
+                "expected_json": st.session_state.get('expect_json_sidebar', True),
+                "source": "cloudwatch",
+                "model_name": metadata.get('model_name'),
+                "timestamp": metadata.get('timestamp')
+            })
+    
     if prompts_to_use:
         custom_count = 1 if user_prompt.strip() else 0
         selected_count = len(st.session_state.get('selected_uploaded_prompts', []))
+        cw_count = len(st.session_state.get('selected_cloudwatch_prompts', []))
         st.info(f"**📊 Total Prompts Selected:** {len(prompts_to_use)}")
         if len(prompts_to_use) > 1:
             parts = []
@@ -1202,6 +1587,8 @@ with st.sidebar:
                 parts.append(f"{custom_count} custom")
             if selected_count > 0:
                 parts.append(f"{selected_count} from file")
+            if cw_count > 0:
+                parts.append(f"{cw_count} from CloudWatch")
             if parts:
                 st.caption(f"• {' + '.join(parts)}")
     

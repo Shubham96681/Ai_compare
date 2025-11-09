@@ -39,9 +39,17 @@ def count_tokens(model_tokenizer: str, text: str) -> int:
         # Llama typically uses SentencePiece, but we'll use GPT-2 as approximation
         return _count_with_tiktoken(text, "gpt2") or _heuristic_count_llama(text)
     
-    # Titan/other - use heuristic
-    if tokenizer_type in ("heuristic", "titan", "amazon"):
+    # Amazon models (Titan, Nova) - use heuristic
+    if tokenizer_type in ("heuristic", "titan", "amazon", "nova"):
         return _heuristic_count(text)
+    
+    # Qwen models - use GPT-2 tokenizer as approximation
+    if tokenizer_type == "qwen":
+        return _count_with_tiktoken(text, "gpt2") or _heuristic_count_llama(text)
+    
+    # Alibaba models - similar to Qwen
+    if tokenizer_type == "alibaba":
+        return _count_with_tiktoken(text, "gpt2") or _heuristic_count_llama(text)
     
     # Fallback to heuristic
     return _heuristic_count(text)

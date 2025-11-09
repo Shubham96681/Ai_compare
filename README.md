@@ -6,18 +6,38 @@ Compare multiple Bedrock-hosted LLMs using production-like prompts. The framewor
 
 ## 📖 **IMPORTANT: Getting Started**
 
-**⚠️ NEW USERS: Please read the [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) first!**
+**🚀 NEW USERS: Choose your setup path:**
 
-The manual run guide contains **detailed step-by-step instructions** for:
-- Setting up your environment
-- Configuring AWS credentials
-- Running evaluations
-- Launching the dashboard
-- Troubleshooting common issues
+### Quick Start (5 minutes)
+**👉 [QUICK_START.md](QUICK_START.md)** - Get the dashboard running fast!
 
-**👉 [Click here to read the Manual Run Guide](MANUAL_RUN_GUIDE.md) 👈**
+Perfect if you:
+- Want to get started quickly
+- Are familiar with Python and AWS
+- Just need the basics
 
-This README provides a quick overview, but the manual guide has comprehensive instructions for first-time setup.
+### Detailed Setup Guide
+**👉 [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md)** - Comprehensive step-by-step instructions
+
+Perfect if you:
+- Are new to Python/AWS
+- Want detailed explanations
+- Need troubleshooting help
+- Want to understand every step
+
+### After Cloning the Repository
+
+1. **Run the setup script** (creates directories and checks configuration):
+   ```bash
+   python setup.py
+   ```
+
+2. **Follow either guide above** to complete setup
+
+3. **Use the checklist** to verify everything is set up correctly:
+   - See [SETUP_CHECKLIST.md](SETUP_CHECKLIST.md) for a step-by-step verification guide
+
+This README provides a quick overview, but the guides above have comprehensive instructions for first-time setup.
 
 ---
 
@@ -105,7 +125,21 @@ git clone <repository-url>
 cd Optimization
 ```
 
-> **📚 Next:** Read [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) for detailed setup instructions!
+### Step 1.5: Run Setup Script (Recommended)
+
+```bash
+python setup.py
+```
+
+This will:
+- Create necessary directories (`data/runs`, `data/cache`)
+- Check your configuration
+- Verify Python version
+- Guide you on next steps
+
+> **📚 Next:** 
+> - **Quick setup?** Read [QUICK_START.md](QUICK_START.md) (5 minutes)
+> - **Detailed guide?** Read [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) (comprehensive)
 
 ### Step 2: Set Up Python Virtual Environment
 
@@ -157,13 +191,16 @@ You have three options for AWS credentials:
 
 **Option A: Using `.env` file (Recommended)**
 
-1. Copy the example environment file:
+1. Create a `.env` file in the project root:
    ```bash
    # Windows PowerShell
-   Copy-Item .env.example .env
+   New-Item -Path .env -ItemType File
+   
+   # Windows CMD
+   type nul > .env
    
    # Linux/Mac
-   cp .env.example .env
+   touch .env
    ```
 
 2. Edit `.env` file and add your AWS credentials:
@@ -171,6 +208,15 @@ You have three options for AWS credentials:
    AWS_ACCESS_KEY_ID=your_access_key_here
    AWS_SECRET_ACCESS_KEY=your_secret_key_here
    AWS_REGION=us-east-2
+   ```
+
+   **💡 Tip:** If `.env.example` exists, you can copy it:
+   ```bash
+   # Windows PowerShell
+   Copy-Item .env.example .env
+   
+   # Linux/Mac
+   cp .env.example .env
    ```
 
    **⚠️ Important:** Never commit the `.env` file to version control!
@@ -344,17 +390,33 @@ python scripts/run_evaluation.py --models all --limit 5 --skip-report
 
 > **📚 For detailed dashboard setup and troubleshooting, see [MANUAL_RUN_GUIDE.md](MANUAL_RUN_GUIDE.md) - Step 12**
 
-1. Launch the Streamlit dashboard:
+**Option A: Using Startup Scripts (Easiest)**
+
+**Windows:**
+```bash
+start_dashboard.bat
+```
+
+**Linux/Mac:**
+```bash
+chmod +x start_dashboard.sh
+./start_dashboard.sh
+```
+
+**Option B: Manual Start**
+
+1. Make sure your virtual environment is activated
+2. Launch the Streamlit dashboard:
    ```bash
    streamlit run src/dashboard.py
    ```
 
-2. The dashboard will automatically open in your browser at:
+3. The dashboard will automatically open in your browser at:
    ```
    http://localhost:8501
    ```
 
-3. If it doesn't open automatically, copy the URL from the terminal output.
+4. If it doesn't open automatically, copy the URL from the terminal output.
 
 **Note:** If you encounter connection issues, check the [Troubleshooting section](MANUAL_RUN_GUIDE.md#troubleshooting) in the manual guide.
 

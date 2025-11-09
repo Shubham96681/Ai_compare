@@ -225,8 +225,8 @@ class BedrockEvaluator:
         tokenizer_type = model.get("tokenizer", "heuristic")
         use_inference_profile = model.get("use_inference_profile", False)
         
-        # Use Converse API for Anthropic Claude models
-        if provider == "anthropic" or "claude" in model_id.lower():
+        # Use Converse API for Anthropic Claude models and Amazon Nova models
+        if provider == "anthropic" or "claude" in model_id.lower() or "nova" in model_id.lower():
             return self._invoke_converse(prompt, model_id, gen_params, tokenizer_type, use_inference_profile)
         
         # Use InvokeModel for other models (Llama, Titan, etc.)
@@ -239,8 +239,8 @@ class BedrockEvaluator:
         gen_params: Dict[str, Any],
         tokenizer_type: str,
         use_inference_profile: bool = False
-    ) -> Tuple[str, int]:
-        """Invoke Anthropic Claude using Converse API."""
+    ) -> Tuple[str, int, int]:
+        """Invoke models using Converse API (Anthropic Claude and Amazon Nova)."""
         # Build model ID variants - prioritize inference profiles if needed
         model_id_without_suffix = model_id.rsplit(":", 1)[0] if ":" in model_id else model_id
         
@@ -469,7 +469,8 @@ class BedrockEvaluator:
                     "top_p": gen_params.get("top_p", 0.9)
                     # Note: Not adding stop sequences here as they may cause empty responses
                 })
-            elif provider == "amazon" or "titan" in model_id.lower():
+            elif provider == "amazon" or "titan" in model_id.lower() or "nova" in model_id.lower():
+                # Amazon models (Titan, Nova) use inputText format
                 body = json.dumps({
                     "inputText": prompt,
                     "textGenerationConfig": {
@@ -477,6 +478,15 @@ class BedrockEvaluator:
                         "temperature": gen_params.get("temperature", 0.2),
                         "topP": gen_params.get("top_p", 0.9)
                     }
+                })
+            elif provider == "alibaba" or "qwen" in model_id.lower():
+                # Alibaba Qwen models - may use similar format to Meta or generic
+                # Try generic format first, may need adjustment based on actual API
+                body = json.dumps({
+                    "prompt": prompt,
+                    "max_tokens": gen_params.get("max_tokens", 512),
+                    "temperature": gen_params.get("temperature", 0.2),
+                    "top_p": gen_params.get("top_p", 0.9)
                 })
             else:
                 # Generic format
@@ -592,13 +602,24 @@ class BedrockEvaluator:
                     # Log the response structure for debugging (first 1000 chars)
                     debug_info = json.dumps(response_body, indent=2)[:1000]
                     response_text = f"[DEBUG: No generation found. Response keys: {response_keys}. Response body: {debug_info}]"
-            elif provider == "amazon" or "titan" in model_id.lower():
+            elif provider == "amazon" or "titan" in model_id.lower() or "nova" in model_id.lower():
                 result = response_body.get("results", [{}])[0] if response_body.get("results") else {}
                 response_text = result.get("outputText", "")
-                # Check for token usage in Amazon Titan response
-                # Titan may return: usage.inputTextTokenCount, usage.results[0].tokenCount
+                # Check for token usage in Amazon model response (Titan, Nova)
+                # Titan/Nova may return: usage.inputTextTokenCount, usage.results[0].tokenCount
                 usage = result.get("usage", {})
                 output_tokens = usage.get("tokenCount") or usage.get("outputTokenCount") or 0
+            elif provider == "alibaba" or "qwen" in model_id.lower():
+                # Alibaba Qwen models - try various response formats
+                response_text = (
+                    response_body.get("completion", "") or 
+                    response_body.get("generated_text", "") or
+                    response_body.get("output", "") or
+                    response_body.get("text", "")
+                )
+                # Check for generic token usage fields
+                usage = response_body.get("usage", {})
+                output_tokens = usage.get("output_tokens") or usage.get("completion_tokens") or usage.get("generation_tokens") or 0
             else:
                 response_text = response_body.get("completion", "") or response_body.get("generated_text", "")
                 # Check for generic token usage fields
@@ -640,8 +661,8 @@ class BedrockEvaluator:
         try:
             # CountTokens API is available for supported models
             # Format request body based on provider
-            if provider == "anthropic":
-                # For Anthropic, use Converse API format
+            if provider == "anthropic" or "nova" in model_id.lower():
+                # For Anthropic and Nova models, use Converse API format
                 body = {
                     "messages": [
                         {
@@ -652,8 +673,10 @@ class BedrockEvaluator:
                 }
             elif provider == "meta" or "llama" in model_id.lower():
                 body = {"prompt": prompt}
-            elif provider == "amazon" or "titan" in model_id.lower():
+            elif provider == "amazon" or "titan" in model_id.lower() or "nova" in model_id.lower():
                 body = {"inputText": prompt}
+            elif provider == "alibaba" or "qwen" in model_id.lower():
+                body = {"prompt": prompt}
             else:
                 body = {"prompt": prompt}
             

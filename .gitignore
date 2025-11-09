@@ -47,6 +47,10 @@ data/*.json
 data/*.csv
 !data/runs/.gitkeep
 
+# CloudWatch log files (can be large)
+*.jsonl
+cloudwatch_logs_*.jsonl
+
 # Results directory (command-line evaluation outputs)
 results/
 

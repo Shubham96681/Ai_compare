@@ -40,7 +40,8 @@ AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", None)
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", None)
 
 # Model IDs for Bedrock
-# Only two models configured: Claude and Llama
+# Note: Primary configuration is in configs/models.yaml
+# This is kept for backward compatibility
 MODELS: Dict[str, Dict[str, Any]] = {
     "claude-sonnet": {
         "model_id": "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -52,14 +53,20 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "provider": "meta",
         "name": "Llama 3.2 11B Instruct",
     },
+    "nova-pro": {
+        "model_id": "us.amazon.nova-pro-v1:0",
+        "provider": "amazon",
+        "name": "Nova Pro",
+    },
 }
 
 # Pricing per 1K tokens (input/output) in USD
 # Source: AWS Bedrock pricing as of 2025
-# Only pricing for Claude and Llama models
+# Note: Primary pricing configuration is in configs/models.yaml
 PRICING: Dict[str, Dict[str, float]] = {
     "claude-sonnet": {"input": 0.008, "output": 0.024},
     "llama-3-2-11b": {"input": 0.0006, "output": 0.0008},
+    "nova-pro": {"input": 0.002, "output": 0.006},
 }
 
 # Evaluation Settings
