@@ -300,3 +300,11 @@ For detailed setup instructions and troubleshooting:
 - [Quick Start Guide](QUICK_START.md)
 - [Manual Run Guide](MANUAL_RUN_GUIDE.md)
 - [Setup Checklist](SETUP_CHECKLIST.md)
+
+---
+
+## Latest Deployment
+
+**Last updated:** 2025-01-13  
+**CI/CD Status:** ✅ Active  
+**Deployment Target:** EC2 (3.111.36.145:8501)
