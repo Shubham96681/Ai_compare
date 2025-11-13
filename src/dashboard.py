@@ -27,6 +27,8 @@ from src.metrics_logger import MetricsLogger
 from src.report_generator import ReportGenerator
 from src.utils.json_utils import is_valid_json
 from src.cloudwatch_parser import CloudWatchParser
+from src.master_model_evaluator import MasterModelEvaluator
+from src.similarity_calculator import SimilarityCalculator
 import tempfile
 import os
 
@@ -426,6 +428,27 @@ st.markdown("""
         text-align: center;
         border: 1px solid rgba(255,255,255,0.2);
     }
+</style>
+
+<script>
+    // Suppress Popper.js preventOverflow warning (harmless Streamlit UI warning)
+    (function() {
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+            const message = args.join(' ');
+            // Filter out the specific Popper.js warning
+            if (message.includes('preventOverflow') && message.includes('modifier is required')) {
+                return; // Suppress this specific warning
+            }
+            // Allow all other warnings
+            originalWarn.apply(console, args);
+        };
+    })();
+</script>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<style>
     
     .premium-card {
         background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
@@ -1477,6 +1500,44 @@ with st.sidebar:
                 with st.expander("Error Details"):
                     st.code(traceback.format_exc())
     
+    # Master Model Section in Sidebar
+    st.markdown("### 🎯 Master Model (Reference)")
+    use_master_model = st.checkbox(
+        "Enable Master Model Comparison",
+        value=False,
+        help="Compare all model outputs against a master/reference model (e.g., ChatGPT)",
+        key="use_master_model_sidebar"
+    )
+    
+    master_model_type = None
+    master_model_id = None
+    if use_master_model:
+        master_model_type = st.selectbox(
+            "Master Model",
+            options=["chatgpt", "gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o"],
+            index=0,
+            help="Select the master/reference model to compare against",
+            key="master_model_type_sidebar"
+        )
+        
+        # Check for OpenAI API key
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            st.warning("⚠️ OPENAI_API_KEY not found in environment variables. Please set it in your .env file.")
+            st.info("💡 Add `OPENAI_API_KEY=your_key_here` to your `.env` file")
+            st.info("🔗 Get your API key at: https://platform.openai.com/api-keys")
+            use_master_model = False
+        else:
+            # Test if the API key is valid by checking its format
+            openai_api_key = openai_api_key.strip()
+            if not openai_api_key.startswith("sk-"):
+                st.error("❌ Invalid API key format. OpenAI API keys should start with 'sk-'")
+                st.info("🔗 Get a valid API key at: https://platform.openai.com/api-keys")
+                use_master_model = False
+            else:
+                st.success("✅ OpenAI API key found")
+                st.caption("💡 If you get 401 errors, verify your key is valid at https://platform.openai.com/api-keys")
+    
     # Settings Section in Sidebar
     with st.expander("⚙️ Settings", expanded=False):
         expect_json = st.checkbox(
@@ -1591,6 +1652,10 @@ with st.sidebar:
                 parts.append(f"{cw_count} from CloudWatch")
             if parts:
                 st.caption(f"• {' + '.join(parts)}")
+    
+    # Store master model settings in session state
+    st.session_state.use_master_model = use_master_model
+    st.session_state.master_model_type = master_model_type if use_master_model else None
     
     # Run Button in Sidebar
     if st.button("🚀 Run Evaluation", type="primary", use_container_width=True, key="run_eval_sidebar"):
@@ -1750,13 +1815,33 @@ with tab1:
                     evaluator = BedrockEvaluator(model_registry)
                     selected_models = [model_registry.get_model_by_name(name) for name in selected_model_names]
                     
+                    # Initialize master model evaluator if enabled
+                    master_evaluator = None
+                    use_master = st.session_state.get('use_master_model', False)
+                    master_model_type = st.session_state.get('master_model_type', None)
+                    
+                    if use_master and master_model_type:
+                        try:
+                            status.update(label=f"🎯 Initializing master model ({master_model_type})...")
+                            master_evaluator = MasterModelEvaluator(model_type=master_model_type)
+                        except Exception as e:
+                            st.warning(f"⚠️ Could not initialize master model: {e}")
+                            use_master = False
+                    
                     status.update(label="🔄 Initializing evaluation engine...")
                     time.sleep(0.5)
                     
                     results = []
                     progress_bar = st.progress(0)
+                    
+                    # Calculate total evaluations (including master model if enabled)
                     total_evaluations = len(prompts_to_evaluate) * len(selected_models)
+                    if use_master:
+                        total_evaluations += len(prompts_to_evaluate)  # Add master model evaluations
                     current_evaluation = 0
+                    
+                    # Store master responses for each prompt
+                    master_responses = {}
                     
                     for prompt_idx, current_prompt in enumerate(prompts_to_evaluate):
                         # Get metadata for this prompt if available
@@ -1764,6 +1849,54 @@ with tab1:
                         prompt_expected_json = prompt_meta.get("expected_json", expect_json)
                         prompt_prompt_id = prompt_meta.get("prompt_id", f"prompt_{prompt_idx+1}" if len(prompts_to_evaluate) > 1 else None)
                         
+                        # Get master model response first if enabled
+                        master_response = None
+                        if use_master and master_evaluator:
+                            try:
+                                current_evaluation += 1
+                                status.update(label=f"🎯 Getting master model response for prompt {prompt_idx+1}/{len(prompts_to_evaluate)}... ({current_evaluation}/{total_evaluations})")
+                                progress_bar.progress(current_evaluation / total_evaluations)
+                                
+                                # Format prompt for master model
+                                final_prompt = current_prompt
+                                if format_as_json:
+                                    try:
+                                        json.loads(current_prompt)
+                                        final_prompt = current_prompt
+                                    except (json.JSONDecodeError, ValueError):
+                                        prompt_json = {
+                                            "prompt": current_prompt,
+                                            "instruction": "Please respond to the following prompt. If JSON format is requested, return your answer as valid JSON."
+                                        }
+                                        final_prompt = json.dumps(prompt_json, indent=2)
+                                elif prompt_expected_json:
+                                    final_prompt = f"{current_prompt}\n\nPlease respond in valid JSON format."
+                                
+                                # Get generation params from first model (or use defaults)
+                                gen_params = model_registry.get_generation_params(selected_models[0]) if selected_models else {}
+                                master_metrics = master_evaluator.evaluate_prompt(
+                                    prompt=final_prompt,
+                                    temperature=gen_params.get("temperature", 0.7),
+                                    max_tokens=gen_params.get("max_tokens", 1500)
+                                )
+                                
+                                if master_metrics.get("status") == "success":
+                                    master_response = master_metrics.get("response", "")
+                                    master_responses[current_prompt] = master_response
+                                    # Store master model metrics for reference
+                                    master_metrics["is_master"] = True
+                                    results.append(master_metrics)
+                                    st.success(f"✅ Master model response received ({len(master_response)} chars)")
+                                else:
+                                    st.warning(f"⚠️ Master model evaluation failed: {master_metrics.get('error', 'Unknown error')}")
+                                    use_master = False
+                            except Exception as e:
+                                st.warning(f"⚠️ Master model evaluation failed: {e}")
+                                import traceback
+                                st.error(f"Error details: {traceback.format_exc()}")
+                                use_master = False
+                        
+                        # Evaluate each selected model
                         for model_idx, model in enumerate(selected_models):
                             if model is None:
                                 continue
@@ -1797,6 +1930,39 @@ with tab1:
                                     expected_json=prompt_expected_json,  # Use prompt-specific expected_json
                                     run_id=f"dashboard_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                                 )
+                                
+                                # Calculate similarity if master model is enabled
+                                # Use master_response from the current prompt's evaluation
+                                current_master_response = master_responses.get(current_prompt, None)
+                                if use_master and current_master_response and metrics.get("status") == "success":
+                                    candidate_response = metrics.get("response", "")
+                                    if candidate_response:
+                                        try:
+                                            similarity_result = SimilarityCalculator.calculate_similarity(
+                                                master_response=current_master_response,
+                                                candidate_response=candidate_response,
+                                                method="combined"
+                                            )
+                                            metrics["similarity_percentage"] = similarity_result.get("similarity_percentage", 0.0)
+                                            metrics["similarity_score"] = similarity_result.get("similarity_score", 0.0)
+                                            metrics["master_model"] = master_model_type
+                                            if "cosine_score" in similarity_result:
+                                                metrics["similarity_cosine"] = similarity_result.get("cosine_score", 0.0)
+                                                metrics["similarity_jaccard"] = similarity_result.get("jaccard_score", 0.0)
+                                                metrics["similarity_levenshtein"] = similarity_result.get("levenshtein_score", 0.0)
+                                            # Debug output
+                                            st.success(f"✅ Similarity calculated for {model.get('name', 'unknown')}: {metrics['similarity_percentage']:.2f}%")
+                                        except Exception as e:
+                                            metrics["similarity_error"] = str(e)
+                                            metrics["similarity_percentage"] = 0.0
+                                            st.warning(f"⚠️ Similarity calculation error for {model.get('name', 'unknown')}: {e}")
+                                            import traceback
+                                            st.error(f"Error details: {traceback.format_exc()}")
+                                elif use_master and not current_master_response:
+                                    st.warning(f"⚠️ No master response found for prompt. Master model may have failed.")
+                                elif use_master and metrics.get("status") != "success":
+                                    st.warning(f"⚠️ Cannot calculate similarity: model evaluation failed for {model.get('name', 'unknown')}")
+                                
                                 results.append(metrics)
                             
                             except Exception as e:
@@ -1906,12 +2072,92 @@ with tab1:
                         output_tokens = pd.to_numeric(results_df.get('output_tokens', pd.Series()), errors='coerce').fillna(0)
                         total_tokens = input_tokens.sum() + output_tokens.sum()
                         st.metric("📝 Total Tokens", f"{int(total_tokens):,}")
+                
+                # Show similarity metrics if master model was used
+                results_df = pd.DataFrame(results)
+                if 'similarity_percentage' in results_df.columns:
+                    similarity_results = [r for r in success_results if 'similarity_percentage' in r and r.get('similarity_percentage') is not None]
+                    if similarity_results:
+                        st.markdown("---")
+                        st.markdown("### 🎯 Similarity to Master Model")
+                        
+                        # Create a more prominent similarity display
+                        sim_col1, sim_col2, sim_col3 = st.columns(3)
+                        
+                        with sim_col1:
+                            avg_similarity = pd.to_numeric(
+                                pd.Series([r.get('similarity_percentage', 0) for r in similarity_results]),
+                                errors='coerce'
+                            ).mean()
+                            st.metric("📊 Avg Similarity", f"{avg_similarity:.2f}%")
+                        
+                        with sim_col2:
+                            max_similarity = pd.to_numeric(
+                                pd.Series([r.get('similarity_percentage', 0) for r in similarity_results]),
+                                errors='coerce'
+                            ).max()
+                            st.metric("🏆 Best Match", f"{max_similarity:.2f}%")
+                        
+                        with sim_col3:
+                            min_similarity = pd.to_numeric(
+                                pd.Series([r.get('similarity_percentage', 0) for r in similarity_results]),
+                                errors='coerce'
+                            ).min()
+                            st.metric("📉 Lowest Match", f"{min_similarity:.2f}%")
+                        
+                        # Add a visual bar chart for similarity scores
+                        st.markdown("#### 📊 Similarity Scores by Model")
+                        similarity_df = pd.DataFrame([
+                            {
+                                'Model': r.get('model_name', 'Unknown'),
+                                'Similarity %': r.get('similarity_percentage', 0)
+                            }
+                            for r in similarity_results
+                        ])
+                        
+                        if not similarity_df.empty:
+                            # Sort by similarity descending
+                            similarity_df = similarity_df.sort_values('Similarity %', ascending=False)
+                            
+                            # Create a bar chart
+                            fig_sim = px.bar(
+                                similarity_df,
+                                x='Model',
+                                y='Similarity %',
+                                title='Model Similarity to Master Model (%)',
+                                color='Similarity %',
+                                color_continuous_scale='RdYlGn',
+                                text='Similarity %',
+                                labels={'Similarity %': 'Similarity (%)', 'Model': 'Model Name'}
+                            )
+                            fig_sim.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+                            fig_sim.update_layout(
+                                xaxis_title="Model",
+                                yaxis_title="Similarity (%)",
+                                yaxis_range=[0, 100],
+                                height=400,
+                                showlegend=False,
+                                hovermode='x unified'
+                            )
+                            st.plotly_chart(fig_sim, use_container_width=True)
+                            
+                            # Show detailed similarity table
+                            st.markdown("#### 📋 Detailed Similarity Breakdown")
+                            similarity_display_df = similarity_df.copy()
+                            similarity_display_df['Similarity %'] = similarity_display_df['Similarity %'].apply(lambda x: f"{x:.2f}%")
+                            st.dataframe(similarity_display_df, use_container_width=True, hide_index=True)
             
             # Detailed results table
             st.subheader("📋 Detailed Results")
             results_df = pd.DataFrame(results)
             display_cols = ['model_name', 'latency_ms', 'input_tokens', 'output_tokens', 
                           'cost_usd_total', 'json_valid', 'status']
+            
+            # Add similarity column if available (make it prominent)
+            if 'similarity_percentage' in results_df.columns:
+                display_cols.insert(1, 'similarity_percentage')  # Insert after model_name
+                st.info("💡 **Similarity scores** show how close each model's output is to the master model (ChatGPT). Higher percentage = more similar.")
+            
             if 'error' in results_df.columns:
                 display_cols.append('error')
             
@@ -1925,6 +2171,10 @@ with tab1:
                 display_df['input_tokens'] = display_df['input_tokens'].apply(lambda x: f"{x:,}" if pd.notna(x) else "0")
             if 'output_tokens' in display_df.columns:
                 display_df['output_tokens'] = display_df['output_tokens'].apply(lambda x: f"{x:,}" if pd.notna(x) else "0")
+            if 'similarity_percentage' in display_df.columns:
+                display_df['similarity_percentage'] = display_df['similarity_percentage'].apply(
+                    lambda x: f"{x:.2f}%" if pd.notna(x) and x >= 0 else "N/A"
+                )
             if 'cost_usd_total' in display_df.columns:
                 display_df['cost_usd_total'] = display_df['cost_usd_total'].apply(lambda x: f"${x:.6f}" if pd.notna(x) and x > 0 else "$0.000000")
             if 'json_valid' in display_df.columns:

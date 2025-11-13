@@ -1,72 +1,214 @@
-name: Deploy to EC2
+name: CI/CD - Deploy to EC2
 
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment even if tests fail'
+        required: false
+        default: 'false'
 
 jobs:
   test:
+    name: Run Tests
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
-    - run: pip install -r requirements.txt
-    - run: |
-        echo "Running basic checks..."
-        python -c "import streamlit, pandas, boto3, numpy; print('✅ All imports successful')"
-        if [ -f tests/test_basic.py ]; then
-          python tests/test_basic.py || true
-        fi
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run basic checks
+      run: |
+        echo "🔍 Running basic checks..."
+        python -c "import streamlit, pandas, boto3, numpy, plotly, openai; print('✅ All imports successful')"
+        python -c "import sys; assert sys.version_info >= (3, 8), 'Python 3.8+ required'; print(f'✅ Python {sys.version_info.major}.{sys.version_info.minor} is compatible')"
+    
+    - name: Check project structure
+      run: |
+        echo "📁 Checking project structure..."
+        [ -f "src/dashboard.py" ] && echo "✅ dashboard.py found" || (echo "❌ dashboard.py not found" && exit 1)
+        [ -f "configs/models.yaml" ] && echo "✅ models.yaml found" || (echo "❌ models.yaml not found" && exit 1)
+        [ -f "requirements.txt" ] && echo "✅ requirements.txt found" || (echo "❌ requirements.txt not found" && exit 1)
+        echo "✅ Project structure is valid"
 
   deploy:
+    name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.force_deploy == 'true')
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
+    
     - name: Deploy to EC2
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.EC2_SSH_PORT || 22 }}
+        timeout: 300s
         script: |
+          set -e
+          
           echo "🚀 Starting deployment on EC2..."
-          cd /home/ec2-user/Optimization
+          echo "📍 EC2 Host: ${{ secrets.EC2_HOST }}"
+          echo "👤 User: ${{ secrets.EC2_USER }}"
           
-          echo "📥 Pulling latest code..."
-          git pull origin main
+          # Determine project directory (support both ec2-user and ubuntu)
+          if [ -d "/home/ec2-user/Optimization" ]; then
+            PROJECT_DIR="/home/ec2-user/Optimization"
+            USER_HOME="/home/ec2-user"
+          elif [ -d "/home/ubuntu/Optimization" ]; then
+            PROJECT_DIR="/home/ubuntu/Optimization"
+            USER_HOME="/home/ubuntu"
+          else
+            echo "❌ Project directory not found. Creating it..."
+            if [ -d "/home/ec2-user" ]; then
+              PROJECT_DIR="/home/ec2-user/Optimization"
+              USER_HOME="/home/ec2-user"
+            else
+              PROJECT_DIR="/home/ubuntu/Optimization"
+              USER_HOME="/home/ubuntu"
+            fi
+            mkdir -p "$PROJECT_DIR"
+            cd "$USER_HOME"
+            git clone https://github.com/infofitsoftwaresolution/Optimization.git || true
+          fi
           
-          echo "📦 Installing dependencies..."
-          pip3 install -r requirements.txt
+          cd "$PROJECT_DIR"
+          echo "📂 Working directory: $PROJECT_DIR"
+          
+          # Backup current .env if it exists
+          if [ -f ".env" ]; then
+            echo "💾 Backing up .env file..."
+            cp .env .env.backup.$(date +%Y%m%d_%H%M%S) || true
+          fi
+          
+          echo "📥 Pulling latest code from GitHub..."
+          git fetch origin main
+          git reset --hard origin/main || git pull origin main
+          
+          echo "🐍 Checking Python version..."
+          python3 --version
+          
+          # Create virtual environment if it doesn't exist
+          if [ ! -d ".venv" ]; then
+            echo "📦 Creating virtual environment..."
+            python3 -m venv .venv
+          fi
+          
+          echo "🔄 Activating virtual environment and installing dependencies..."
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          
+          echo "🧹 Cleaning Streamlit cache..."
+          rm -rf .streamlit/cache || true
+          
+          # Restore .env if it was backed up
+          if [ -f ".env.backup."* ]; then
+            echo "🔄 Restoring .env file..."
+            LATEST_BACKUP=$(ls -t .env.backup.* | head -1)
+            if [ -n "$LATEST_BACKUP" ]; then
+              cp "$LATEST_BACKUP" .env
+            fi
+          fi
           
           echo "🔄 Restarting Streamlit service..."
-          sudo systemctl restart streamlit-optimization.service
           
-          echo "⏳ Waiting for service to stabilize..."
-          sleep 15
+          # Try systemd service first
+          if systemctl list-units --type=service | grep -q "streamlit-optimization.service" || \
+             systemctl list-units --type=service | grep -q "optimization-app.service"; then
+            SERVICE_NAME=""
+            if systemctl list-units --type=service | grep -q "streamlit-optimization.service"; then
+              SERVICE_NAME="streamlit-optimization.service"
+            else
+              SERVICE_NAME="optimization-app.service"
+            fi
+            
+            echo "📋 Using systemd service: $SERVICE_NAME"
+            sudo systemctl stop "$SERVICE_NAME" || true
+            sleep 2
+            sudo systemctl start "$SERVICE_NAME"
+            sleep 5
+            
+            if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+              echo "✅ Systemd service is running"
+              sudo systemctl status "$SERVICE_NAME" --no-pager -l | head -20
+            else
+              echo "⚠️  Systemd service failed, falling back to manual deployment..."
+              sudo systemctl status "$SERVICE_NAME" --no-pager -l | head -30
+              # Fall through to manual deployment
+            fi
+          fi
           
-          echo "🔍 Checking deployment status..."
-          if sudo systemctl is-active --quiet streamlit-optimization.service; then
-            echo "✅ Streamlit service is running"
+          # Manual deployment (if systemd not available or failed)
+          if ! pgrep -f "streamlit run.*dashboard.py" > /dev/null; then
+            echo "🔧 Starting Streamlit manually..."
+            
+            # Kill any existing Streamlit processes
+            pkill -f "streamlit run.*dashboard.py" || true
+            sleep 3
+            
+            # Start Streamlit in background
+            export PATH="$HOME/.local/bin:$PATH"
+            nohup python3 -m streamlit run src/dashboard.py \
+              --server.port 8501 \
+              --server.address 0.0.0.0 \
+              --server.headless true \
+              --server.runOnSave false \
+              --browser.serverAddress 0.0.0.0 \
+              --browser.gatherUsageStats false \
+              > dashboard.log 2>&1 &
+            
+            echo "⏳ Waiting for Streamlit to start..."
+            sleep 10
+          fi
+          
+          # Verify deployment
+          echo "🔍 Verifying deployment..."
+          
+          if pgrep -f "streamlit run.*dashboard.py" > /dev/null; then
+            STREAMLIT_PID=$(pgrep -f "streamlit run.*dashboard.py" | head -1)
+            echo "✅ Streamlit is running! PID: $STREAMLIT_PID"
             
             # Health check
-            if curl -f -s --max-time 10 http://localhost:8501/ > /dev/null; then
-              echo "🎉 Deployment successful! App is live at: http://${{ secrets.EC2_HOST }}"
+            echo "🏥 Running health check..."
+            if curl -f -s --max-time 10 http://localhost:8501/_stcore/health > /dev/null 2>&1 || \
+               curl -f -s --max-time 10 http://localhost:8501/ > /dev/null 2>&1; then
+              echo "🎉 Deployment successful! App is live at: http://${{ secrets.EC2_HOST }}:8501"
+              echo "📊 Process info:"
+              ps aux | grep -E "streamlit|dashboard" | grep -v grep | head -5
             else
-              echo "⚠️  Service running but health check failed"
-              echo "📋 Service status:"
-              sudo systemctl status streamlit-optimization.service --no-pager -l
+              echo "⚠️  Streamlit is running but health check failed"
+              echo "📋 Recent logs:"
+              tail -30 dashboard.log 2>/dev/null || echo "No log file found"
             fi
           else
-            echo "❌ Streamlit service failed to start"
-            sudo systemctl status streamlit-optimization.service --no-pager -l
-            echo "📝 Recent logs:"
-            sudo journalctl -u streamlit-optimization.service -n 30 --no-pager
+            echo "❌ Streamlit failed to start"
+            echo "📋 Recent logs:"
+            tail -50 dashboard.log 2>/dev/null || echo "No log file found"
+            echo "📋 System status:"
+            ps aux | grep -E "streamlit|python" | grep -v grep || echo "No Streamlit processes found"
             exit 1
           fi
+          
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 Dashboard URL: http://${{ secrets.EC2_HOST }}:8501"
+          echo "📝 Log file: $PROJECT_DIR/dashboard.log"

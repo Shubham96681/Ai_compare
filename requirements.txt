@@ -11,5 +11,6 @@ tenacity>=8.3.0
 python-dotenv>=1.0.1
 sqlite-utils>=3.36
 tqdm>=4.66.0
+openai>=1.0.0
 statistics; python_version < '3.8'
 

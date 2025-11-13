@@ -4,7 +4,7 @@ This guide explains how to set up automated deployment from GitHub to EC2 for th
 
 ## 📋 Prerequisites
 
-1. **EC2 Instance** running Ubuntu (IP: 3.110.44.41)
+1. **EC2 Instance** running Ubuntu (IP: 3.111.36.145)
 2. **GitHub Repository**: https://github.com/infofitsoftwaresolution/Optimization
 3. **SSH Access** to EC2 instance
 4. **GitHub Account** with repository access
@@ -16,7 +16,7 @@ This guide explains how to set up automated deployment from GitHub to EC2 for th
 SSH into your EC2 instance and run the setup script:
 
 ```bash
-ssh ubuntu@3.110.44.41
+ssh ubuntu@3.111.36.145
 cd ~
 wget https://raw.githubusercontent.com/infofitsoftwaresolution/Optimization/main/scripts/ec2_setup.sh
 chmod +x ec2_setup.sh
@@ -46,7 +46,7 @@ You need to add the following secrets to your GitHub repository:
 ### Required Secrets:
 
 #### `EC2_HOST`
-- **Value**: `3.110.44.41`
+- **Value**: `3.111.36.145`
 - **Description**: Your EC2 instance IP address
 
 #### `EC2_USER`
@@ -85,10 +85,10 @@ If you don't have an SSH key pair for EC2:
 ssh-keygen -t rsa -b 4096 -C "infofitsoftware@gmail.com" -f ~/.ssh/ec2_optimization_key
 
 # Copy public key to EC2
-ssh-copy-id -i ~/.ssh/ec2_optimization_key.pub ubuntu@3.110.44.41
+ssh-copy-id -i ~/.ssh/ec2_optimization_key.pub ubuntu@3.111.36.145
 
 # Or manually add to EC2:
-cat ~/.ssh/ec2_optimization_key.pub | ssh ubuntu@3.110.44.41 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+cat ~/.ssh/ec2_optimization_key.pub | ssh ubuntu@3.111.36.145 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
 ```
 
 ### Add Private Key to GitHub Secrets:
@@ -147,10 +147,10 @@ git push origin main
    - Check deployment logs
 
 4. **Verify deployment**:
-   - Access dashboard: http://3.110.44.41:8501
+   - Access dashboard: http://3.111.36.145:8501
    - Check application logs on EC2:
      ```bash
-     ssh ubuntu@3.110.44.41
+     ssh ubuntu@3.111.36.145
      tail -f /home/ubuntu/Optimization/dashboard.log
      ```
 
@@ -184,7 +184,7 @@ You can also trigger deployment manually:
 
 ```bash
 # SSH into EC2
-ssh ubuntu@3.110.44.41
+ssh ubuntu@3.111.36.145
 
 # Check if Streamlit is running
 ps aux | grep streamlit
@@ -253,7 +253,7 @@ If your application needs environment variables on EC2:
 
 1. Create `.env` file on EC2:
    ```bash
-   ssh ubuntu@3.110.44.41
+   ssh ubuntu@3.111.36.145
    cd /home/ubuntu/Optimization
    nano .env
    ```
@@ -276,10 +276,10 @@ If your application needs environment variables on EC2:
 - **Branch**: `main` (triggers auto-deployment)
 
 ### EC2 Instance:
-- **IP**: 3.110.44.41
+- **IP**: 3.111.36.145
 - **User**: ubuntu
 - **Project Directory**: `/home/ubuntu/Optimization`
-- **Dashboard URL**: http://3.110.44.41:8501
+- **Dashboard URL**: http://3.111.36.145:8501
 
 ### Git Configuration:
 - **Email**: infofitsoftware@gmail.com
@@ -294,7 +294,7 @@ If your application needs environment variables on EC2:
 - [ ] GitHub secrets are configured (EC2_HOST, EC2_USER, SSH_PRIVATE_KEY)
 - [ ] Git user email is configured locally
 - [ ] Test deployment has been run successfully
-- [ ] Dashboard is accessible at http://3.110.44.41:8501
+- [ ] Dashboard is accessible at http://3.111.36.145:8501
 - [ ] Nginx is configured (if using reverse proxy)
 
 ---
